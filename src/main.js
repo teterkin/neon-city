@@ -6,6 +6,9 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { AVENUE_EVERY, CELL, FOG_DENSITY } from './config.js';
 import { City } from './city.js';
 import { CameraRig } from './cameraRig.js';
+import { Escort } from './escort.js';
+import { Traffic } from './traffic.js';
+import { mulberry32 } from './noise.js';
 import { detectEnvironment, nextTier, pickQuality, qualitySettings } from './quality.js';
 import { detectWebGL } from './webglSupport.js';
 import { createGround } from './materials/groundMaterial.js';
@@ -82,7 +85,24 @@ function start() {
   const sky = createSky();
   scene.add(sky.mesh);
 
+  const trafficEnabled = params.get('traffic') !== '0';
+  const traffic = trafficEnabled
+    ? new Traffic({
+        count: tier === 'high' ? 96 : 56,
+        camera: camera.position,
+        rng: mulberry32((Math.random() * 0x7fffffff) | 0),
+      })
+    : null;
+  if (traffic) scene.add(traffic.group);
+
+  const escort = new Escort();
+  scene.add(escort.group);
+
   const rig = new CameraRig(camera, canvas);
+  const turnParam = Number(params.get('turn'));
+  if (Number.isFinite(turnParam) && turnParam >= 0 && turnParam <= 1) {
+    rig.turnChance = turnParam;
+  }
 
   const composer = new EffectComposer(renderer);
   composer.setPixelRatio(renderer.getPixelRatio());
@@ -148,6 +168,18 @@ function start() {
 
     rig.update(dt);
     city.update(nowMs, camera.position);
+    if (traffic) {
+      traffic.update(dt, camera.position);
+      traffic.setTime(elapsed);
+    }
+    escort.update(
+      dt,
+      camera.position,
+      rig.heading,
+      elapsed,
+      rig.mode === 'sky' ? 7 : 2.2,
+      rig.mode === 'sky' ? 28 : 19,
+    );
     city.setTime(elapsed);
     ground.setTime(elapsed);
     ground.mesh.position.x = camera.position.x;
@@ -188,5 +220,17 @@ function start() {
   });
 
   syncModeUi();
-  window.__neon = { city, rig, renderer, scene, camera, composer, tier, settings, fogDensity: FOG_DENSITY };
+  window.__neon = {
+    city,
+    rig,
+    renderer,
+    scene,
+    camera,
+    composer,
+    traffic,
+    escort,
+    tier,
+    settings,
+    fogDensity: FOG_DENSITY,
+  };
 }

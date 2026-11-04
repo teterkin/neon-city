@@ -1,0 +1,148 @@
+import * as THREE from 'three';
+import { TRAFFIC_TYPES } from './trafficModel.js';
+import { createVehicleMaterial } from './materials/vehicleMaterial.js';
+import { advanceVehicle, createFleet, needsRespawn, spawnVehicle } from './trafficModel.js';
+
+const UP = new THREE.Vector3(0, 1, 0);
+
+function makeGlowTexture() {
+  if (typeof document === 'undefined') return null;
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext('2d');
+  const gradient = context.createRadialGradient(
+    size / 2,
+    size / 2,
+    0,
+    size / 2,
+    size / 2,
+    size / 2,
+  );
+  gradient.addColorStop(0, 'rgba(255,255,255,1)');
+  gradient.addColorStop(0.25, 'rgba(255,255,255,0.65)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, size, size);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+export class Traffic {
+  constructor({ count = 64, camera, rng = Math.random, radius = 320 } = {}) {
+    this.count = count;
+    this.radius = radius;
+    this.camera = camera;
+    this.rng = rng;
+    this.fleet = createFleet(count, camera, rng, radius);
+
+    this.geometry = new THREE.BoxGeometry(1, 1, 1);
+    this.kindAttribute = new THREE.InstancedBufferAttribute(new Float32Array(count), 1);
+    this.geometry.setAttribute('aKind', this.kindAttribute);
+
+    this.material = createVehicleMaterial();
+    this.mesh = new THREE.InstancedMesh(this.geometry, this.material, count);
+    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.mesh.frustumCulled = false;
+    this.mesh.name = 'traffic';
+
+    this.group = new THREE.Group();
+    this.group.name = 'traffic-group';
+    this.group.add(this.mesh);
+
+    this.glowPositions = new Float32Array(count * 3);
+    this.glowColors = new Float32Array(count * 3);
+    this.glowGeometry = new THREE.BufferGeometry();
+    this.glowGeometry.setAttribute(
+      'position',
+      new THREE.BufferAttribute(this.glowPositions, 3),
+    );
+    this.glowGeometry.setAttribute('color', new THREE.BufferAttribute(this.glowColors, 3));
+    this.glowTexture = makeGlowTexture();
+    this.glowMaterial = new THREE.PointsMaterial({
+      size: 3.2,
+      map: this.glowTexture,
+      sizeAttenuation: true,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    this.glows = new THREE.Points(this.glowGeometry, this.glowMaterial);
+    this.glows.frustumCulled = false;
+    this.group.add(this.glows);
+
+    this._matrix = new THREE.Matrix4();
+    this._quaternion = new THREE.Quaternion();
+    this._position = new THREE.Vector3();
+    this._scale = new THREE.Vector3();
+    this._color = new THREE.Color();
+
+    for (let i = 0; i < count; i += 1) {
+      this._write(i, this.fleet[i]);
+      this.mesh.setColorAt(i, this._color.setHex(this.fleet[i].tint));
+    }
+    this.mesh.instanceMatrix.needsUpdate = true;
+    this.mesh.instanceColor.needsUpdate = true;
+  }
+
+  update(dt, camera) {
+    for (let i = 0; i < this.count; i += 1) {
+      let vehicle = this.fleet[i];
+      advanceVehicle(vehicle, dt);
+
+      if (needsRespawn(vehicle, camera, this.radius)) {
+        vehicle = spawnVehicle(camera, this.rng, this.radius);
+        this.fleet[i] = vehicle;
+        this.mesh.setColorAt(i, this._color.setHex(vehicle.tint));
+        this.mesh.instanceColor.needsUpdate = true;
+      }
+
+      this._write(i, vehicle);
+    }
+    this.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  setTime(seconds) {
+    this.material.uniforms.uTime.value = seconds;
+  }
+
+  dispose() {
+    this.mesh.dispose();
+    this.geometry.dispose();
+    this.material.dispose();
+    this.glowGeometry.dispose();
+    this.glowMaterial.dispose();
+    if (this.glowTexture) this.glowTexture.dispose();
+  }
+
+  _write(index, vehicle) {
+    const spec = TRAFFIC_TYPES[vehicle.type];
+    const bob = Math.sin(vehicle.phase) * 0.35;
+
+    this._position.set(vehicle.x, vehicle.y + bob, vehicle.z);
+    this._quaternion.setFromAxisAngle(UP, vehicle.heading);
+    this._scale.set(spec.width, spec.height, spec.length);
+    this._matrix.compose(this._position, this._quaternion, this._scale);
+
+    this.mesh.setMatrixAt(index, this._matrix);
+    this.kindAttribute.array[index] = vehicle.type === 'cargo' ? 0 : 1;
+    this.kindAttribute.needsUpdate = true;
+
+    const rearOffset = spec.length * 0.55;
+    this.glowPositions[index * 3] = vehicle.x - Math.sin(vehicle.heading) * rearOffset;
+    this.glowPositions[index * 3 + 1] = vehicle.y + bob;
+    this.glowPositions[index * 3 + 2] = vehicle.z - Math.cos(vehicle.heading) * rearOffset;
+
+    this._color.setHex(vehicle.tint);
+    this.glowColors[index * 3] = this._color.r * 1.5;
+    this.glowColors[index * 3 + 1] = this._color.g * 1.5;
+    this.glowColors[index * 3 + 2] = this._color.b * 1.5;
+    this.glowGeometry.attributes.position.needsUpdate = true;
+    this.glowGeometry.attributes.color.needsUpdate = true;
+  }
+}

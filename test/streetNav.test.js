@@ -1,0 +1,100 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mulberry32 } from '../src/noise.js';
+import { StreetNav } from '../src/streetNav.js';
+import { CELL, AVENUE_EVERY } from '../src/config.js';
+import { avenueCenterX } from '../src/layout.js';
+
+const STEP = 1 / 60;
+const SPEED = 17;
+
+function laneError(value) {
+  return Math.abs(value - avenueCenterX(value));
+}
+
+function run(nav, seconds) {
+  const steps = Math.round(seconds / STEP);
+  let state = null;
+  for (let i = 0; i < steps; i += 1) state = nav.update(STEP, SPEED);
+  return state;
+}
+
+test('street nav flies straight when the dice never allow a turn', () => {
+  const nav = new StreetNav({ x: avenueCenterX(0), z: 0, rng: () => 0.99 });
+  const state = run(nav, 60);
+  assert.equal(nav.turns.length, 0);
+  assert.ok(Math.abs(state.heading) < 1e-9);
+  assert.ok(laneError(state.x) < 1e-6, `x ${state.x} left the avenue`);
+  assert.ok(state.z > 900);
+});
+
+test('street nav turns at intersections and stays on the new lane', () => {
+  const nav = new StreetNav({ x: avenueCenterX(0), z: 0, rng: () => 0 });
+  const state = run(nav, 4);
+  assert.equal(nav.turns.length, 1);
+
+  const turn = nav.turns[0];
+  assert.ok(laneError(turn.x) < 1e-6, `turn x ${turn.x} is not an intersection`);
+  assert.ok(laneError(turn.z) < 1e-6, `turn z ${turn.z} is not an intersection`);
+
+  assert.ok(Math.abs(state.heading - Math.PI / 2) < 1e-6);
+  assert.ok(laneError(state.z) < 1e-6);
+  assert.ok(state.x > turn.x, 'camera should move along the new avenue');
+});
+
+test('street nav respects the turn chance', () => {
+  const nav = new StreetNav({ x: avenueCenterX(0), z: 0, rng: () => 0.5, turnChance: 0.34 });
+  run(nav, 60);
+  assert.equal(nav.turns.length, 0);
+});
+
+test('street nav finishes turns with cardinal headings', () => {
+  const nav = new StreetNav({
+    x: avenueCenterX(0),
+    z: 0,
+    rng: mulberry32(7),
+    turnChance: 0.8,
+  });
+  for (let i = 0; i < 4000; i += 1) {
+    const state = nav.update(STEP, SPEED);
+    if (!state.turning) {
+      const quarters = state.heading / (Math.PI / 2);
+      assert.ok(Math.abs(quarters - Math.round(quarters)) < 1e-6, `heading ${state.heading}`);
+    }
+  }
+  assert.ok(nav.turns.length > 3, `only ${nav.turns.length} turns`);
+});
+
+test('street nav never leaves an avenue corridor', () => {
+  const nav = new StreetNav({
+    x: avenueCenterX(0),
+    z: 0,
+    rng: mulberry32(99),
+    turnChance: 0.7,
+  });
+  let worst = 0;
+  for (let i = 0; i < 6000; i += 1) {
+    const state = nav.update(STEP, SPEED);
+    if (state.turning) continue;
+    const alongZ = Math.abs(Math.cos(state.heading)) > 0.5;
+    worst = Math.max(worst, alongZ ? laneError(state.x) : laneError(state.z));
+  }
+  assert.ok(worst < 0.01, `drifted ${worst} off the lane`);
+});
+
+test('street nav is deterministic for the same seed', () => {
+  const a = new StreetNav({ x: avenueCenterX(0), z: 0, rng: mulberry32(123) });
+  const b = new StreetNav({ x: avenueCenterX(0), z: 0, rng: mulberry32(123) });
+  for (let i = 0; i < 5000; i += 1) {
+    assert.deepEqual(a.update(STEP, SPEED), b.update(STEP, SPEED));
+  }
+  assert.equal(a.turns.length, b.turns.length);
+  assert.ok(a.turns.length > 0);
+});
+
+test('intersections repeat every avenue block', () => {
+  const spacing = CELL * AVENUE_EVERY;
+  assert.equal(spacing, 98);
+  assert.equal(avenueCenterX(0), CELL / 2);
+  assert.equal(avenueCenterX(CELL * AVENUE_EVERY), CELL * AVENUE_EVERY + CELL / 2);
+});

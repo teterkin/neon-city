@@ -6,6 +6,8 @@ import {
   STREET_SPEED,
 } from './config.js';
 import { avenueCenterX } from './layout.js';
+import { mulberry32 } from './noise.js';
+import { StreetNav } from './streetNav.js';
 
 const BASE_YAW = Math.PI;
 const SKY_PITCH = -0.24;
@@ -26,6 +28,9 @@ export class CameraRig {
     this.z = 0;
     this.height = SKY_HEIGHT;
     this.speed = SKY_SPEED;
+    this.heading = 0;
+    this.nav = null;
+    this.turnChance = 0.34;
 
     this.lookYaw = 0;
     this.lookPitch = 0;
@@ -49,6 +54,18 @@ export class CameraRig {
     this.mode = this.mode === 'sky' ? 'street' : 'sky';
     this.targetYaw = 0;
     this.targetPitch = 0;
+    if (this.mode === 'street') {
+      this.x = avenueCenterX(this.x);
+      this.nav = new StreetNav({
+        x: this.x,
+        z: this.z,
+        heading: this.heading,
+        rng: mulberry32((Math.random() * 0x7fffffff) | 0),
+        turnChance: this.turnChance,
+      });
+    } else {
+      this.nav = null;
+    }
     if (this.onModeChange) this.onModeChange(this.mode);
   }
 
@@ -66,10 +83,15 @@ export class CameraRig {
     this.height = damp(this.height, targetHeight, 2.1, dt);
     this.speed = damp(this.speed, targetSpeed, 1.6, dt);
 
-    this.z += this.speed * dt;
-
-    if (this.mode === 'street') {
-      this.x = damp(this.x, avenueCenterX(this.x), 2.4, dt);
+    if (this.mode === 'street' && this.nav) {
+      const state = this.nav.update(dt, this.speed);
+      this.x = state.x;
+      this.z = state.z;
+      this.heading = state.heading;
+    } else {
+      this.heading = damp(this.heading, 0, 2.4, dt);
+      this.x += Math.sin(this.heading) * this.speed * dt;
+      this.z += Math.cos(this.heading) * this.speed * dt;
     }
 
     if (!this.dragging) {
@@ -94,7 +116,12 @@ export class CameraRig {
 
   _apply() {
     this.camera.position.set(this.x, this.height, this.z);
-    this.camera.rotation.set(this.pitch, BASE_YAW + this.lookYaw, 0, 'YXZ');
+    this.camera.rotation.set(
+      this.pitch,
+      BASE_YAW + this.heading + this.lookYaw,
+      0,
+      'YXZ',
+    );
   }
 
   _bind() {
