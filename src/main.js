@@ -7,9 +7,11 @@ import { AVENUE_EVERY, CELL, FOG_DENSITY } from './config.js';
 import { City } from './city.js';
 import { CameraRig } from './cameraRig.js';
 import { Escort } from './escort.js';
+import { Meteors } from './meteors.js';
 import { Traffic } from './traffic.js';
 import { mulberry32 } from './noise.js';
 import { parseTurnChance } from './params.js';
+import { BOOT_STAGES, stageProgress } from './loadProgress.js';
 import { detectEnvironment, nextTier, pickQuality, qualitySettings } from './quality.js';
 import { detectWebGL } from './webglSupport.js';
 import { createGround } from './materials/groundMaterial.js';
@@ -18,6 +20,36 @@ import './style.css';
 
 const canvas = document.getElementById('scene');
 const fallback = document.getElementById('fallback');
+const loader = document.getElementById('loader');
+const loaderBar = document.getElementById('loader-bar');
+const loaderStatus = document.getElementById('loader-status');
+const loaderPercent = document.getElementById('loader-percent');
+const bootStart = performance.now();
+
+function setStage(index) {
+  const ratio = stageProgress(BOOT_STAGES, index);
+  const percent = Math.round(ratio * 100);
+  if (loaderBar) loaderBar.style.width = `${percent}%`;
+  if (loaderPercent) loaderPercent.textContent = `${percent}%`;
+  if (loaderStatus) loaderStatus.textContent = BOOT_STAGES[index].label;
+}
+
+function paint() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => setTimeout(resolve, 0));
+  });
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function hideLoader() {
+  if (!loader) return;
+  loader.classList.add('is-hidden');
+  document.body.classList.add('ready');
+  setTimeout(() => loader.remove(), 700);
+}
 
 function showFallback(title, text) {
   if (!fallback) return;
@@ -25,7 +57,15 @@ function showFallback(title, text) {
   fallback.querySelector('p').textContent = text;
   fallback.hidden = false;
   canvas.style.display = 'none';
+  if (loader) loader.classList.add('is-hidden');
+  document.body.classList.add('ready');
 }
+
+setTimeout(() => {
+  if (loader && !loader.classList.contains('is-hidden') && loaderStatus) {
+    loaderStatus.textContent = 'долго… проверьте WebGL';
+  }
+}, 15000);
 
 const gl = detectWebGL();
 if (!gl.supported) {
@@ -34,10 +74,19 @@ if (!gl.supported) {
     'Этот браузер не умеет рисовать 3D. Попробуйте Chrome, Safari или Firefox посвежее.',
   );
 } else {
-  start();
+  start().catch((error) => {
+    console.error(error);
+    showFallback(
+      'Не удалось запустить',
+      'Обновите страницу или попробуйте другой браузер.',
+    );
+  });
 }
 
-function start() {
+async function start() {
+  setStage(0);
+  await paint();
+
   const env = detectEnvironment();
   const params = new URLSearchParams(window.location.search);
   const forcedQuality = params.get('quality');
@@ -73,12 +122,18 @@ function start() {
     1600,
   );
 
+  setStage(1);
+  await paint();
+
   const city = new City({
     cols: settings.ring,
     rows: settings.ring,
     reflection: settings.reflection,
   });
   scene.add(city.group);
+
+  setStage(2);
+  await paint();
 
   const ground = createGround({ cell: CELL, avenueEvery: AVENUE_EVERY });
   scene.add(ground.mesh);
@@ -99,6 +154,19 @@ function start() {
   const escort = new Escort();
   scene.add(escort.group);
 
+  const meteorsEnabled = params.get('meteors') !== '0';
+  const meteors = meteorsEnabled
+    ? new Meteors({
+        capacity: tier === 'high' ? 5 : 3,
+        rng: mulberry32((Math.random() * 0x7fffffff) | 0),
+      })
+    : null;
+  if (meteors) scene.add(meteors.group);
+
+  setStage(3);
+  await paint();
+  renderer.compile(scene, camera);
+
   const rig = new CameraRig(camera, canvas);
   const turnChance = parseTurnChance(params.get('turn'));
   if (turnChance !== null) rig.setTurnChance(turnChance);
@@ -116,6 +184,10 @@ function start() {
   );
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
+
+  setStage(4);
+  await paint();
+  composer.render();
 
   const modeLabel = document.getElementById('mode-label');
   const fpsLabel = document.getElementById('fps-label');
@@ -158,7 +230,7 @@ function start() {
   let fps = 60;
   let slowStreak = 0;
   let degraded = false;
-  let ready = false;
+  let firstFrame = false;
 
   renderer.setAnimationLoop(() => {
     const nowMs = performance.now();
@@ -174,6 +246,9 @@ function start() {
     if (traffic) {
       traffic.update(dt, camera.position);
       traffic.setTime(elapsed);
+    }
+    if (meteors) {
+      meteors.update(dt, camera.position, rig.heading);
     }
     const turning = rig.nav?.turning === true;
     escort.update(
@@ -191,6 +266,7 @@ function start() {
     sky.mesh.position.copy(camera.position);
 
     composer.render();
+    firstFrame = true;
 
     frames += 1;
     hudTimer += dt;
@@ -216,11 +292,6 @@ function start() {
         slowStreak = 0;
       }
     }
-
-    if (!ready) {
-      ready = true;
-      document.body.classList.add('ready');
-    }
   });
 
   syncModeUi();
@@ -233,8 +304,22 @@ function start() {
     composer,
     traffic,
     escort,
+    meteors,
     tier,
     settings,
     fogDensity: FOG_DENSITY,
   };
+
+  await Promise.race([
+    new Promise((resolve) => {
+      const tick = () => (firstFrame ? resolve() : requestAnimationFrame(tick));
+      tick();
+    }),
+    wait(4000),
+  ]);
+
+  const bootElapsed = performance.now() - bootStart;
+  if (bootElapsed < 900) await wait(900 - bootElapsed);
+  await wait(450);
+  hideLoader();
 }

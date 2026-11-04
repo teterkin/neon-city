@@ -1,34 +1,16 @@
 import * as THREE from 'three';
-import { TRAFFIC_TYPES } from './trafficModel.js';
+import { createGlowTexture } from './materials/glowTexture.js';
 import { createVehicleMaterial } from './materials/vehicleMaterial.js';
-import { advanceVehicle, createFleet, needsRespawn, spawnVehicle } from './trafficModel.js';
+import {
+  TRAFFIC_TYPES,
+  advanceVehicle,
+  createFleet,
+  laneForIndex,
+  needsRespawn,
+  spawnVehicle,
+} from './trafficModel.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
-
-function makeGlowTexture() {
-  if (typeof document === 'undefined') return null;
-  const size = 64;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const context = canvas.getContext('2d');
-  const gradient = context.createRadialGradient(
-    size / 2,
-    size / 2,
-    0,
-    size / 2,
-    size / 2,
-    size / 2,
-  );
-  gradient.addColorStop(0, 'rgba(255,255,255,1)');
-  gradient.addColorStop(0.25, 'rgba(255,255,255,0.65)');
-  gradient.addColorStop(1, 'rgba(255,255,255,0)');
-  context.fillStyle = gradient;
-  context.fillRect(0, 0, size, size);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
 
 export class Traffic {
   constructor({ count = 64, camera, rng = Math.random, radius = 320 } = {}) {
@@ -60,7 +42,7 @@ export class Traffic {
       new THREE.BufferAttribute(this.glowPositions, 3),
     );
     this.glowGeometry.setAttribute('color', new THREE.BufferAttribute(this.glowColors, 3));
-    this.glowTexture = makeGlowTexture();
+    this.glowTexture = createGlowTexture();
     this.glowMaterial = new THREE.PointsMaterial({
       size: 3.2,
       map: this.glowTexture,
@@ -96,7 +78,7 @@ export class Traffic {
       advanceVehicle(vehicle, dt);
 
       if (needsRespawn(vehicle, camera, this.radius)) {
-        vehicle = spawnVehicle(camera, this.rng, this.radius);
+        vehicle = spawnVehicle(camera, this.rng, this.radius, laneForIndex(i));
         this.fleet[i] = vehicle;
         this.mesh.setColorAt(i, this._color.setHex(vehicle.tint));
         this.mesh.instanceColor.needsUpdate = true;

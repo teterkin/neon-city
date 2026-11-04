@@ -8,9 +8,98 @@
     />
     <meta name="theme-color" content="#05030c" />
     <link rel="icon" href="data:," />
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #05030c;
+      }
+
+      #loader {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at 50% 42%, #180b2c 0%, #07040f 58%, #05030c 100%);
+        color: #d5f5ff;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        transition: opacity 550ms ease;
+      }
+
+      #loader.is-hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .loader-inner {
+        width: min(78vw, 320px);
+        text-align: center;
+      }
+
+      .loader-brand {
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: 0.34em;
+        color: #eafcff;
+        text-shadow: 0 0 18px rgba(79, 246, 255, 0.45);
+      }
+
+      .loader-brand span {
+        color: #ff4fc8;
+        text-shadow: 0 0 18px rgba(255, 79, 200, 0.7);
+      }
+
+      .loader-track {
+        height: 2px;
+        margin: 22px 0 10px;
+        overflow: hidden;
+        background: rgba(79, 246, 255, 0.14);
+      }
+
+      #loader-bar {
+        width: 0%;
+        height: 100%;
+        background: linear-gradient(90deg, #34e5ff, #ff35b0);
+        box-shadow: 0 0 16px rgba(79, 246, 255, 0.8);
+        transition: width 350ms ease;
+      }
+
+      .loader-meta {
+        display: flex;
+        justify-content: space-between;
+        font-size: 9px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        opacity: 0.65;
+      }
+
+      .loader-tip {
+        margin-top: 26px;
+        font-size: 8px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        opacity: 0.3;
+      }
+    </style>
     <title>Neon Drift — бесконечный город</title>
   </head>
   <body>
+    <div id="loader" role="status" aria-live="polite">
+      <div class="loader-inner">
+        <div class="loader-brand">NEON<span>DRIFT</span></div>
+        <div class="loader-track"><div id="loader-bar"></div></div>
+        <div class="loader-meta">
+          <span id="loader-status">инициализация</span>
+          <span id="loader-percent">0%</span>
+        </div>
+        <div class="loader-tip">бесконечный город · WebGL</div>
+      </div>
+    </div>
+
     <canvas id="scene"></canvas>
 
     <div id="hud">

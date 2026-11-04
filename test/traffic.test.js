@@ -49,6 +49,18 @@ test('fleet contains cargo and passenger traffic', () => {
   }
 });
 
+test('fleet flies in all four directions evenly', () => {
+  const fleet = createFleet(120, CAMERA, mulberry32(11), RADIUS);
+  const counts = new Map();
+  for (const vehicle of fleet) {
+    const key = ((Math.round(vehicle.heading / (Math.PI / 2)) % 4) + 4) % 4;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  for (const key of [0, 1, 2, 3]) {
+    assert.equal(counts.get(key), 30, `direction ${key} has ${counts.get(key)} vehicles`);
+  }
+});
+
 test('cargo is slower than passenger traffic', () => {
   assert.ok(TRAFFIC_TYPES.cargo.speedMax < TRAFFIC_TYPES.passenger.speedMin);
 });

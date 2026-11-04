@@ -29,12 +29,23 @@ export const TRAFFIC_TYPES = {
 const PASSENGER_TINTS = [0x34e5ff, 0xff35b0, 0x9a6bff, 0x7dffe0];
 const BLOCK = CELL * AVENUE_EVERY;
 
-export function spawnVehicle(camera, rng, radius = 320) {
+export const TRAFFIC_LANES = [
+  { axis: 'z', direction: 1 },
+  { axis: 'z', direction: -1 },
+  { axis: 'x', direction: 1 },
+  { axis: 'x', direction: -1 },
+];
+
+export function laneForIndex(index) {
+  return TRAFFIC_LANES[index % TRAFFIC_LANES.length];
+}
+
+export function spawnVehicle(camera, rng, radius = 320, laneSpec = null) {
   const type = rng() < TRAFFIC_TYPES.cargo.weight ? 'cargo' : 'passenger';
   const spec = TRAFFIC_TYPES[type];
 
-  const alongZ = rng() < 0.5;
-  const direction = rng() < 0.5 ? 1 : -1;
+  const alongZ = laneSpec ? laneSpec.axis === 'z' : rng() < 0.5;
+  const direction = laneSpec ? laneSpec.direction : rng() < 0.5 ? 1 : -1;
   const laneOffset = (Math.floor(rng() * 3) - 1) * BLOCK;
   const lane = alongZ
     ? avenueCenterX(camera.x + laneOffset)
@@ -72,7 +83,9 @@ export function spawnVehicle(camera, rng, radius = 320) {
 
 export function createFleet(count, camera, rng, radius = 320) {
   const fleet = new Array(count);
-  for (let i = 0; i < count; i += 1) fleet[i] = spawnVehicle(camera, rng, radius);
+  for (let index = 0; index < count; index += 1) {
+    fleet[index] = spawnVehicle(camera, rng, radius, laneForIndex(index));
+  }
   return fleet;
 }
 
