@@ -175,13 +175,14 @@ function start() {
       traffic.update(dt, camera.position);
       traffic.setTime(elapsed);
     }
+    const turning = rig.nav?.turning === true;
     escort.update(
       dt,
       camera.position,
       rig.heading,
       elapsed,
       rig.mode === 'sky' ? 7 : 2.2,
-      rig.mode === 'sky' ? 28 : 19,
+      rig.mode === 'sky' ? 28 : turning ? 9 : 19,
     );
     city.setTime(elapsed);
     ground.setTime(elapsed);

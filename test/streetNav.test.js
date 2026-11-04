@@ -43,14 +43,46 @@ test('street nav turns every one or two blocks', () => {
   assert.ok(nav.turns[0].time <= 10);
 });
 
+test('turns start at the intersection entry, before its centre', () => {
+  const nav = new StreetNav({ x: avenueCenterX(0), z: 0, rng: () => 0 });
+  let state = null;
+  for (let i = 0; i < 800 && nav.turns.length === 0; i += 1) {
+    state = nav.update(STEP, SPEED);
+  }
+  assert.equal(nav.turns.length, 1, 'expected one turn');
+
+  const turn = nav.turns[0];
+  const center = avenueCenterX(turn.z);
+  assert.ok(
+    turn.z >= center - CELL / 2 - 1e-6,
+    `turn ${turn.z} started before the intersection entry ${center - CELL / 2}`,
+  );
+  assert.ok(
+    turn.z < center - 1,
+    `turn ${turn.z} started at/after the centre ${center}`,
+  );
+
+  for (let i = 0; i < 200 && nav.turning; i += 1) {
+    state = nav.update(STEP, SPEED);
+  }
+  assert.ok(!nav.turning);
+  assert.ok(
+    Math.abs(state.z - center) < 1e-6,
+    `lane merge ended at ${state.z}, expected ${center}`,
+  );
+});
+
 test('street nav turns at intersections and stays on the new lane', () => {
   const nav = new StreetNav({ x: avenueCenterX(0), z: 0, rng: () => 0 });
-  const state = run(nav, 4);
+  const state = run(nav, 6);
   assert.equal(nav.turns.length, 1);
 
   const turn = nav.turns[0];
   assert.ok(laneError(turn.x) < 1e-6, `turn x ${turn.x} is not an intersection`);
-  assert.ok(laneError(turn.z) < 1e-6, `turn z ${turn.z} is not an intersection`);
+  assert.ok(
+    Math.abs(turn.z - avenueCenterX(turn.z)) <= CELL / 2 + 1e-6,
+    `turn z ${turn.z} is outside the intersection`,
+  );
 
   assert.ok(Math.abs(state.heading - Math.PI / 2) < 1e-6);
   assert.ok(laneError(state.z) < 1e-6);

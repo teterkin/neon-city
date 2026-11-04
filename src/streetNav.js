@@ -6,10 +6,6 @@ const HALF_CELL = CELL / 2;
 const TURN_RATE = 3.2;
 const TURN_SPEED_FACTOR = 0.25;
 
-function laneIndex(value) {
-  return Math.floor((value - HALF_CELL) / SPACING);
-}
-
 export function wrapAngle(angle) {
   const twoPi = Math.PI * 2;
   let wrapped = angle % twoPi;
@@ -44,6 +40,10 @@ export class StreetNav {
     this.lastTurnDirection = 0;
     this.blocksSinceTurn = 0;
     this.blocksUntilTurn = this._nextBlocks();
+    this.snapAxis = null;
+    this.snapFrom = 0;
+    this.snapTo = 0;
+    this.turnSpan = Math.PI / 2;
   }
 
   update(dt, speed) {
@@ -63,28 +63,23 @@ export class StreetNav {
       if (Math.abs(delta) <= maxStep) {
         this.heading = this.targetHeading;
         this.turning = false;
-        this._snapToLane();
+        this._finishMerge();
       } else {
         this.heading = wrapAngle(this.heading + Math.sign(delta) * maxStep);
+        this._updateMerge();
       }
     } else {
       const alongZ = Math.abs(Math.cos(this.heading)) > 0.5;
-      if (alongZ) {
-        const before = laneIndex(previousZ);
-        const after = laneIndex(this.z);
-        if (after !== before) {
-          this.z = HALF_CELL + after * SPACING;
-          this._snapToLane();
-          turned = this._considerTurn();
-        }
-      } else {
-        const before = laneIndex(previousX);
-        const after = laneIndex(this.x);
-        if (after !== before) {
-          this.x = HALF_CELL + after * SPACING;
-          this._snapToLane();
-          turned = this._considerTurn();
-        }
+      const sign = alongZ
+        ? Math.sign(Math.cos(this.heading))
+        : Math.sign(Math.sin(this.heading));
+      const entryOffset = HALF_CELL - sign * HALF_CELL;
+      const previousValue = alongZ ? previousZ : previousX;
+      const currentValue = alongZ ? this.z : this.x;
+      const before = Math.floor((previousValue - entryOffset) / SPACING);
+      const after = Math.floor((currentValue - entryOffset) / SPACING);
+      if (after !== before) {
+        turned = this._considerTurn(alongZ);
       }
     }
 
@@ -102,19 +97,28 @@ export class StreetNav {
     return this.blocksMin + Math.floor(this.rng() * span);
   }
 
-  _considerTurn() {
+  _considerTurn(alongZ) {
     if (this.turnChance !== null) {
-      return this.rng() < this.turnChance ? this._startTurn() : false;
+      if (this.rng() >= this.turnChance) return false;
+    } else {
+      this.blocksSinceTurn += 1;
+      if (this.blocksSinceTurn < this.blocksUntilTurn) return false;
     }
-    this.blocksSinceTurn += 1;
-    if (this.blocksSinceTurn < this.blocksUntilTurn) return false;
-    return this._startTurn();
+    return this._startTurn(alongZ);
   }
 
-  _startTurn() {
+  _startTurn(alongZ) {
     const direction = this.rng() < 0.5 ? 1 : -1;
+    const axis = alongZ ? 'z' : 'x';
+    const value = this[axis];
+
     this.turns.push({ x: this.x, z: this.z, heading: this.heading, time: this.time });
     this.lastTurnDirection = direction;
+    this.snapAxis = axis;
+    this.snapFrom = value;
+    this.snapTo = avenueCenterX(value);
+    this.turnSpan = Math.PI / 2;
+
     this.targetHeading = wrapAngle(this.heading + (direction * Math.PI) / 2);
     this.turning = true;
     this.blocksSinceTurn = 0;
@@ -122,11 +126,17 @@ export class StreetNav {
     return true;
   }
 
-  _snapToLane() {
-    if (Math.abs(Math.cos(this.heading)) > 0.5) {
-      this.x = avenueCenterX(this.x);
-    } else {
-      this.z = avenueCenterX(this.z);
-    }
+  _updateMerge() {
+    if (!this.snapAxis) return;
+    const remaining = Math.abs(wrapAngle(this.targetHeading - this.heading));
+    const progress = Math.min(1, Math.max(0, 1 - remaining / this.turnSpan));
+    const eased = progress * progress * (3 - 2 * progress);
+    this[this.snapAxis] = this.snapFrom + (this.snapTo - this.snapFrom) * eased;
+  }
+
+  _finishMerge() {
+    if (!this.snapAxis) return;
+    this[this.snapAxis] = this.snapTo;
+    this.snapAxis = null;
   }
 }
