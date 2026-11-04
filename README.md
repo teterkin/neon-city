@@ -64,6 +64,154 @@ npm run verify:bundle  # проверяет, что в neon-city.html нет в�
 WebGL 2.0 в Telegram WebView обычно доступен, но конкретное устройство я проверить не
 могу. Если на телефоне будет тяжело, добавьте к ссылке `?quality=low`.
 
+## Telegram Mini App (Web App)
+
+Приложение — обычная статическая страница, поэтому из него легко сделать Telegram
+Mini App: Telegram открывает HTTPS-ссылку в своём WebView, а мы получаем кнопку
+«Играть» в чате с ботом.
+
+### 1. Соберите и опубликуйте страницу
+
+```bash
+npm run build:single
+cp neon-city.html index.html   # удобно для корня сайта
+```
+
+Загрузите `index.html` на любой HTTPS-хостинг с валидным сертификатом:
+
+- **GitHub Pages** — положите `index.html` в репозиторий, затем Settings → Pages →
+  Deploy from a branch (корень или `/docs`);
+- **Cloudflare Pages / Netlify Drop** — перетащите папку, получите `https://…`;
+- **свой сервер** — обычный nginx/Apache со статикой и TLS.
+
+Проверьте ссылку в браузере телефона до Telegram. Требования Telegram: только
+**публичный HTTPS**, без `localhost`, без самоподписанного сертификата.
+
+### Пример: GitHub Pages
+
+**Вариант 1 — вручную, без CI (5 минут).** Соберите файл и положите его как
+`index.html` в отдельный репозиторий:
+
+```bash
+npm run build:single
+mkdir -p /tmp/neon-pages && cp neon-city.html /tmp/neon-pages/index.html
+cd /tmp/neon-pages
+git init -b main
+git add index.html
+git commit -m "deploy neon city"
+git remote add origin https://github.com/<USER>/neon-city.git
+git push -u origin main
+```
+
+Затем в GitHub: **Settings → Pages → Build and deployment → Source: Deploy from a
+branch → Branch: `main` / `(root)` → Save**. Через 1–2 минуты приложение будет здесь:
+
+```
+https://<USER>.github.io/neon-city/
+```
+
+Эту ссылку уже можно вставлять в BotFather. Обновление — повторить сборку, скопировать
+`index.html`, закоммитить и запушить. Проверьте, что в Pages включён **Enforce HTTPS**.
+
+**Вариант 2 — GitHub Actions, деплой на каждый push.** Исходники живут в репозитории,
+Pages собирается сам. Добавьте `.github/workflows/pages.yml`:
+
+```yaml
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build:single
+      - run: mkdir -p site && cp neon-city.html site/index.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+```
+
+В GitHub: **Settings → Pages → Source: GitHub Actions**. После push workflow прогонит
+тесты, соберёт single-file и опубликует его. Для продакшена полезно запинить actions по
+commit SHA вместо тегов `v4` — так безопаснее.
+
+Если репозиторий называется `<USER>.github.io`, сайт откроется в корне
+`https://<USER>.github.io/`, иначе — по пути `/neon-city/`. Требование Pages — файл
+`index.html` в корне выбранной папки; наш `neon-city.html` переименовывается в него.
+Размер 566 КБ для лимитов Pages (1 ГБ на сайт) не проблема.
+
+### 2. Создайте бота и Mini App в @BotFather
+
+1. `/newbot` → имя → username → получите токен (не публикуйте его в репозитории).
+2. `/newapp` → выберите бота → название, описание, иконка (640×360) → **URL
+   приложения** (ваша HTTPS-ссылка на `index.html`).
+3. BotFather даст прямую ссылку вида `https://t.me/<bot_username>/<app_name>`.
+   Она уже открывает приложение как Mini App.
+4. Альтернатива без `/newapp`: `/mybots` → ваш бот → **Bot Settings → Menu Button →
+   Configure menu button** → вставьте URL и подпись. Кнопка появится в чате с ботом.
+
+Вместо BotFather кнопку можно поставить через Bot API (токен — только в переменной
+окружения, не в файлах):
+
+```bash
+curl -X POST "https://api.telegram.org/bot$TG_TOKEN/setChatMenuButton" \
+  -H "Content-Type: application/json" \
+  -d '{"menu_button":{"type":"web_app","text":"В город","web_app":{"url":"https://example.com/"}}}'
+```
+
+### 3. Проверка и отладка
+
+- откройте `https://t.me/<bot_username>/<app_name>` на телефоне;
+- Android: `chrome://inspect` на компьютере — консоль WebView; iOS: Safari →
+  Develop → телефон (нужно включить Web Inspector);
+- если на слабом телефоне мало FPS — добавьте `?quality=low` к URL приложения;
+- для локальной отладки нужен туннель, например
+  `cloudflared tunnel --url http://localhost:5173` — Telegram не откроет localhost.
+
+### 4. SDK Telegram (необязательно)
+
+Для запуска SDK не нужен: Mini App — это просто HTTPS-страница. Если нужны
+`expand()`, `disableVerticalSwipes()`, цвета темы и данные пользователя, добавьте в
+`index.html` перед своим скриптом:
+
+```html
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+```
+
+и вызовите `Telegram.WebApp.ready(); Telegram.WebApp.expand();`. Учтите: это
+единственный внешний запрос, и `neon-city.html` перестанет быть полностью
+автономным — для Mini App это нормально, для отправки файлом лучше оставить текущую
+сборку без SDK.
+
 ## Как это устроено
 
 - `src/noise.js` — seeded simplex 2D, fbm и хеши
@@ -79,7 +227,7 @@ WebGL 2.0 в Telegram WebView обычно доступен, но конкрет
 - `src/traffic.js`, `src/escort.js` — инстансинг трафика и наш спидер
 - `src/quality.js` — выбор high/low по устройству и деградация по FPS
 
-Тесты покрывают только чистую логику (`node --test`, 53 теста): шум, раскладку ячеек,
+Тесты покрывают только чистую логику (`node --test`, 56 тестов): шум, раскладку ячеек,
 стриминг инстансов, рост, навигацию с поворотами, модель трафика, выбор качества и
 WebGL-детект. Визуал проверяется глазами — WebGL в CI не рендерится.
 

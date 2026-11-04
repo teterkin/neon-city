@@ -9,6 +9,7 @@ import { CameraRig } from './cameraRig.js';
 import { Escort } from './escort.js';
 import { Traffic } from './traffic.js';
 import { mulberry32 } from './noise.js';
+import { parseTurnChance } from './params.js';
 import { detectEnvironment, nextTier, pickQuality, qualitySettings } from './quality.js';
 import { detectWebGL } from './webglSupport.js';
 import { createGround } from './materials/groundMaterial.js';
@@ -99,10 +100,8 @@ function start() {
   scene.add(escort.group);
 
   const rig = new CameraRig(camera, canvas);
-  const turnParam = Number(params.get('turn'));
-  if (Number.isFinite(turnParam) && turnParam >= 0 && turnParam <= 1) {
-    rig.turnChance = turnParam;
-  }
+  const turnChance = parseTurnChance(params.get('turn'));
+  if (turnChance !== null) rig.setTurnChance(turnChance);
 
   const composer = new EffectComposer(renderer);
   composer.setPixelRatio(renderer.getPixelRatio());
@@ -122,6 +121,7 @@ function start() {
   const fpsLabel = document.getElementById('fps-label');
   const buildingsLabel = document.getElementById('buildings-label');
   const toggle = document.getElementById('mode-toggle');
+  const turnFlash = document.getElementById('turn-flash');
 
   function syncModeUi() {
     const isSky = rig.mode === 'sky';
@@ -167,6 +167,9 @@ function start() {
     elapsed += dt;
 
     rig.update(dt);
+    if (turnFlash) {
+      turnFlash.classList.toggle('show', nowMs < rig.turnFlashUntil);
+    }
     city.update(nowMs, camera.position);
     if (traffic) {
       traffic.update(dt, camera.position);

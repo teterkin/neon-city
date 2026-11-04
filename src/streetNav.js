@@ -3,8 +3,8 @@ import { avenueCenterX } from './layout.js';
 
 const SPACING = CELL * AVENUE_EVERY;
 const HALF_CELL = CELL / 2;
-const TURN_RATE = 4.2;
-const TURN_SPEED_FACTOR = 0.35;
+const TURN_RATE = 3.2;
+const TURN_SPEED_FACTOR = 0.25;
 
 function laneIndex(value) {
   return Math.floor((value - HALF_CELL) / SPACING);
@@ -41,6 +41,7 @@ export class StreetNav {
     this.turnRate = turnRate;
     this.turns = [];
     this.time = 0;
+    this.lastTurnDirection = 0;
     this.blocksSinceTurn = 0;
     this.blocksUntilTurn = this._nextBlocks();
   }
@@ -113,6 +114,7 @@ export class StreetNav {
   _startTurn() {
     const direction = this.rng() < 0.5 ? 1 : -1;
     this.turns.push({ x: this.x, z: this.z, heading: this.heading, time: this.time });
+    this.lastTurnDirection = direction;
     this.targetHeading = wrapAngle(this.heading + (direction * Math.PI) / 2);
     this.turning = true;
     this.blocksSinceTurn = 0;

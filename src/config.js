@@ -31,5 +31,5 @@ export const FOG_COLOR = 0x241233;
 export const FOG_DENSITY = 0.0064;
 export const SKY_HEIGHT = 96;
 export const STREET_HEIGHT = 3.2;
-export const SKY_SPEED = 26;
+export const SKY_SPEED = 24;
 export const STREET_SPEED = 22;

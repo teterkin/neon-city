@@ -7,7 +7,7 @@ import {
 } from './config.js';
 import { avenueCenterX } from './layout.js';
 import { mulberry32 } from './noise.js';
-import { StreetNav } from './streetNav.js';
+import { StreetNav, wrapAngle } from './streetNav.js';
 
 const BASE_YAW = Math.PI;
 const SKY_PITCH = -0.24;
@@ -29,8 +29,16 @@ export class CameraRig {
     this.height = SKY_HEIGHT;
     this.speed = SKY_SPEED;
     this.heading = 0;
-    this.nav = null;
+    this.roll = 0;
     this.turnChance = null;
+    this.turnFlashUntil = 0;
+    this.lastTurnDirection = 0;
+    this.nav = new StreetNav({
+      x: avenueCenterX(0),
+      z: 0,
+      heading: 0,
+      rng: mulberry32((Math.random() * 0x7fffffff) | 0),
+    });
 
     this.lookYaw = 0;
     this.lookPitch = 0;
@@ -54,19 +62,12 @@ export class CameraRig {
     this.mode = this.mode === 'sky' ? 'street' : 'sky';
     this.targetYaw = 0;
     this.targetPitch = 0;
-    if (this.mode === 'street') {
-      this.x = avenueCenterX(this.x);
-      this.nav = new StreetNav({
-        x: this.x,
-        z: this.z,
-        heading: this.heading,
-        rng: mulberry32((Math.random() * 0x7fffffff) | 0),
-        turnChance: this.turnChance,
-      });
-    } else {
-      this.nav = null;
-    }
     if (this.onModeChange) this.onModeChange(this.mode);
+  }
+
+  setTurnChance(chance) {
+    this.turnChance = chance;
+    if (this.nav) this.nav.turnChance = chance;
   }
 
   get pitch() {
@@ -83,16 +84,20 @@ export class CameraRig {
     this.height = damp(this.height, targetHeight, 2.1, dt);
     this.speed = damp(this.speed, targetSpeed, 1.6, dt);
 
-    if (this.mode === 'street' && this.nav) {
-      const state = this.nav.update(dt, this.speed);
-      this.x = state.x;
-      this.z = state.z;
-      this.heading = state.heading;
-    } else {
-      this.heading = damp(this.heading, 0, 2.4, dt);
-      this.x += Math.sin(this.heading) * this.speed * dt;
-      this.z += Math.cos(this.heading) * this.speed * dt;
+    const previousHeading = this.heading;
+    const state = this.nav.update(dt, this.speed);
+    this.x = state.x;
+    this.z = state.z;
+    this.heading = state.heading;
+
+    if (state.turned) {
+      this.turnFlashUntil = performance.now() + 1300;
+      this.lastTurnDirection = this.nav.lastTurnDirection;
     }
+
+    const headingRate = dt > 0 ? wrapAngle(this.heading - previousHeading) / dt : 0;
+    const targetRoll = THREE.MathUtils.clamp(-headingRate * 0.04, -0.22, 0.22);
+    this.roll = damp(this.roll, targetRoll, 6, dt);
 
     if (!this.dragging) {
       this.idleTime += dt;
@@ -119,7 +124,7 @@ export class CameraRig {
     this.camera.rotation.set(
       this.pitch,
       BASE_YAW + this.heading + this.lookYaw,
-      0,
+      this.roll,
       'YXZ',
     );
   }
