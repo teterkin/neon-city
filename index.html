@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#05030c" />
+    <link rel="icon" href="data:," />
+    <title>Neon Drift — бесконечный город</title>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <div id="hud">
+      <div class="brand">NEON<span>DRIFT</span></div>
+      <div class="readout">
+        <span id="mode-label">ВЫСОТА</span>
+        <i></i>
+        <span id="fps-label">--</span> FPS
+        <i></i>
+        <span id="buildings-label">0</span> BLD
+      </div>
+    </div>
+
+    <button id="mode-toggle" type="button">УЛИЦА</button>
+    <p id="hint">V — сменить режим · тяни, чтобы осмотреться</p>
+
+    <div id="fallback" hidden>
+      <h1>Нужен WebGL</h1>
+      <p>Этот браузер не умеет рисовать 3D. Попробуйте Chrome, Safari или Firefox посвежее.</p>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "name": "neon-city",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "build:single": "vite build && node scripts/pack.mjs",
+    "verify:bundle": "node scripts/verify-bundle.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "three": "0.187.0"
+  },
+  "devDependencies": {
+    "vite": "7.3.7",
+    "vite-plugin-singlefile": "2.3.4"
+  }
+}
