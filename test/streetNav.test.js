@@ -6,7 +6,7 @@ import { CELL, AVENUE_EVERY } from '../src/config.js';
 import { avenueCenterX } from '../src/layout.js';
 
 const STEP = 1 / 60;
-const SPEED = 17;
+const SPEED = 22;
 
 function laneError(value) {
   return Math.abs(value - avenueCenterX(value));
@@ -19,13 +19,28 @@ function run(nav, seconds) {
   return state;
 }
 
-test('street nav flies straight when the dice never allow a turn', () => {
-  const nav = new StreetNav({ x: avenueCenterX(0), z: 0, rng: () => 0.99 });
+test('street nav flies straight when turns are disabled', () => {
+  const nav = new StreetNav({ x: avenueCenterX(0), z: 0, rng: () => 0.99, turnChance: 0 });
   const state = run(nav, 60);
   assert.equal(nav.turns.length, 0);
   assert.ok(Math.abs(state.heading) < 1e-9);
   assert.ok(laneError(state.x) < 1e-6, `x ${state.x} left the avenue`);
   assert.ok(state.z > 900);
+});
+
+test('street nav turns every one or two blocks', () => {
+  const nav = new StreetNav({ x: avenueCenterX(0), z: 0, rng: mulberry32(2024) });
+  run(nav, 100);
+  assert.ok(nav.turns.length >= 8, `only ${nav.turns.length} turns in 100s`);
+
+  const gaps = [];
+  for (let i = 1; i < nav.turns.length; i += 1) {
+    gaps.push(nav.turns[i].time - nav.turns[i - 1].time);
+  }
+  for (const gap of gaps) {
+    assert.ok(gap >= 4 && gap <= 10, `turn gap ${gap.toFixed(2)}s outside 4-10s`);
+  }
+  assert.ok(nav.turns[0].time <= 10);
 });
 
 test('street nav turns at intersections and stays on the new lane', () => {

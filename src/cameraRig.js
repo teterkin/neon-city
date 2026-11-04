@@ -30,7 +30,7 @@ export class CameraRig {
     this.speed = SKY_SPEED;
     this.heading = 0;
     this.nav = null;
-    this.turnChance = 0.34;
+    this.turnChance = null;
 
     this.lookYaw = 0;
     this.lookPitch = 0;

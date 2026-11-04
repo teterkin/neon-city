@@ -24,7 +24,9 @@ export class StreetNav {
     z = 0,
     heading = 0,
     rng = Math.random,
-    turnChance = 0.34,
+    turnChance = null,
+    blocksMin = 1,
+    blocksMax = 2,
     turnRate = TURN_RATE,
   } = {}) {
     this.x = x;
@@ -34,11 +36,17 @@ export class StreetNav {
     this.turning = false;
     this.rng = rng;
     this.turnChance = turnChance;
+    this.blocksMin = blocksMin;
+    this.blocksMax = blocksMax;
     this.turnRate = turnRate;
     this.turns = [];
+    this.time = 0;
+    this.blocksSinceTurn = 0;
+    this.blocksUntilTurn = this._nextBlocks();
   }
 
   update(dt, speed) {
+    this.time += dt;
     const step = speed * dt * (this.turning ? TURN_SPEED_FACTOR : 1);
     const previousX = this.x;
     const previousZ = this.z;
@@ -66,7 +74,7 @@ export class StreetNav {
         if (after !== before) {
           this.z = HALF_CELL + after * SPACING;
           this._snapToLane();
-          turned = this._rollTurn();
+          turned = this._considerTurn();
         }
       } else {
         const before = laneIndex(previousX);
@@ -74,7 +82,7 @@ export class StreetNav {
         if (after !== before) {
           this.x = HALF_CELL + after * SPACING;
           this._snapToLane();
-          turned = this._rollTurn();
+          turned = this._considerTurn();
         }
       }
     }
@@ -88,12 +96,27 @@ export class StreetNav {
     };
   }
 
-  _rollTurn() {
-    if (this.rng() >= this.turnChance) return false;
+  _nextBlocks() {
+    const span = this.blocksMax - this.blocksMin + 1;
+    return this.blocksMin + Math.floor(this.rng() * span);
+  }
+
+  _considerTurn() {
+    if (this.turnChance !== null) {
+      return this.rng() < this.turnChance ? this._startTurn() : false;
+    }
+    this.blocksSinceTurn += 1;
+    if (this.blocksSinceTurn < this.blocksUntilTurn) return false;
+    return this._startTurn();
+  }
+
+  _startTurn() {
     const direction = this.rng() < 0.5 ? 1 : -1;
-    this.turns.push({ x: this.x, z: this.z, heading: this.heading });
+    this.turns.push({ x: this.x, z: this.z, heading: this.heading, time: this.time });
     this.targetHeading = wrapAngle(this.heading + (direction * Math.PI) / 2);
     this.turning = true;
+    this.blocksSinceTurn = 0;
+    this.blocksUntilTurn = this._nextBlocks();
     return true;
   }
 
