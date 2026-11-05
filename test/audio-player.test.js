@@ -117,6 +117,21 @@ test('stop fades out and stops the source after the fade', async () => {
   assert.equal(source.stopped, true);
 });
 
+test('starting a new loop stops any lingering source immediately', async () => {
+  const { soundtrack, context } = makeSoundtrack();
+  await soundtrack.prepare();
+  soundtrack.play();
+  const first = context.sources[0];
+
+  soundtrack.stop();
+  soundtrack.play();
+
+  assert.equal(first.stopped, true, 'old source must not overlap the new loop');
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  assert.equal(soundtrack.playing, true);
+  assert.equal(context.sources[1].stopped, false, 'new source must stay alive');
+});
+
 test('toggle switches between playing and stopped', async () => {
   const { soundtrack } = makeSoundtrack();
   await soundtrack.prepare();

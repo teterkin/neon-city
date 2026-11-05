@@ -19,6 +19,16 @@ function run(nav, seconds) {
   return state;
 }
 
+test('completeTurn finishes a turn and snaps onto the new lane', () => {
+  const nav = new StreetNav({ x: avenueCenterX(0), z: 0, rng: () => 0 });
+  for (let i = 0; i < 800 && nav.turns.length === 0; i += 1) nav.update(STEP, SPEED);
+  assert.equal(nav.turning, true);
+  nav.completeTurn();
+  assert.equal(nav.turning, false);
+  assert.ok(Math.abs(nav.heading - Math.PI / 2) < 1e-9);
+  assert.ok(laneError(nav.z) < 1e-9);
+});
+
 test('street nav flies straight when turns are disabled', () => {
   const nav = new StreetNav({ x: avenueCenterX(0), z: 0, rng: () => 0.99, turnChance: 0 });
   const state = run(nav, 60);

@@ -21,8 +21,10 @@ export class Soundtrack {
     this.fetchImpl = fetchImpl ?? ((...args) => globalThis.fetch(...args));
     this.context = null;
     this.gain = null;
+    this.filter = null;
     this.buffer = null;
     this.source = null;
+    this.liveSources = new Set();
     this.duration = 0;
     this.available = false;
     this.playing = false;
@@ -38,7 +40,15 @@ export class Soundtrack {
         this.context = this.contextFactory();
         this.gain = this.context.createGain();
         this.gain.gain.value = 0;
-        this.gain.connect(this.context.destination);
+        if (typeof this.context.createBiquadFilter === 'function') {
+          this.filter = this.context.createBiquadFilter();
+          this.filter.type = 'highpass';
+          this.filter.frequency.value = 28;
+          this.gain.connect(this.filter);
+          this.filter.connect(this.context.destination);
+        } else {
+          this.gain.connect(this.context.destination);
+        }
         const response = await this.fetchImpl(this.url);
         const bytes = await response.arrayBuffer();
         this.buffer = await this.context.decodeAudioData(bytes);
@@ -61,19 +71,14 @@ export class Soundtrack {
       if (resumed && typeof resumed.catch === 'function') resumed.catch(() => {});
     } catch {}
 
-    if (this.source) {
-      try {
-        this.source.stop();
-      } catch {}
-      this.source.disconnect?.();
-      this.source = null;
-    }
+    this._stopLiveSources();
 
     const now = this.context.currentTime;
     const source = this.context.createBufferSource();
     source.buffer = this.buffer;
     source.loop = true;
     source.connect(this.gain);
+    source.onended = () => this.liveSources.delete(source);
 
     const gain = this.gain.gain;
     if (typeof gain.cancelAndHoldAtTime === 'function') {
@@ -86,6 +91,7 @@ export class Soundtrack {
     gain.linearRampToValueAtTime(this.volume, now + this.fadeIn);
     source.start(now);
 
+    this.liveSources.add(source);
     this.source = source;
     this.playing = true;
     this.onChange?.(true);
@@ -93,7 +99,7 @@ export class Soundtrack {
   }
 
   stop() {
-    if (!this.context || !this.source) {
+    if (!this.context || this.liveSources.size === 0) {
       this.playing = false;
       return;
     }
@@ -108,17 +114,31 @@ export class Soundtrack {
     }
     gain.linearRampToValueAtTime(0, now + this.fadeOut);
 
-    const source = this.source;
     this.source = null;
     this.playing = false;
     this.onChange?.(false);
 
+    const fading = [...this.liveSources];
     setTimeout(() => {
+      for (const source of fading) {
+        try {
+          source.stop();
+        } catch {}
+        source.disconnect?.();
+        this.liveSources.delete(source);
+      }
+    }, this.fadeOut * 1000 + 50);
+  }
+
+  _stopLiveSources() {
+    for (const source of this.liveSources) {
       try {
         source.stop();
       } catch {}
       source.disconnect?.();
-    }, this.fadeOut * 1000 + 50);
+    }
+    this.liveSources.clear();
+    this.source = null;
   }
 
   toggle() {

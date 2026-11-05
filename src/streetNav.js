@@ -92,6 +92,13 @@ export class StreetNav {
     };
   }
 
+  completeTurn() {
+    if (!this.turning) return;
+    this.heading = this.targetHeading;
+    this.turning = false;
+    this._finishMerge();
+  }
+
   _nextBlocks() {
     const span = this.blocksMax - this.blocksMin + 1;
     return this.blocksMin + Math.floor(this.rng() * span);

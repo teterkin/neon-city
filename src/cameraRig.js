@@ -54,22 +54,28 @@ export class CameraRig {
   }
 
   toggleMode() {
-    this.mode = this.mode === 'sky' ? 'street' : 'sky';
-    this.targetYaw = 0;
-    this.targetPitch = 0;
     if (this.mode === 'street') {
-      this.x = avenueCenterX(this.x);
+      if (this.nav) {
+        this.nav.completeTurn();
+        this.x = this.nav.x;
+        this.z = this.nav.z;
+        this.heading = this.nav.heading;
+        this.nav = null;
+      }
+      this.mode = 'sky';
+    } else {
+      this.mode = 'street';
       this.roll = 0;
       this.nav = new StreetNav({
         x: this.x,
         z: this.z,
-        heading: 0,
+        heading: this.heading,
         rng: mulberry32((Math.random() * 0x7fffffff) | 0),
         turnChance: this.turnChance,
       });
-    } else {
-      this.nav = null;
     }
+    this.targetYaw = 0;
+    this.targetPitch = 0;
     if (this.onModeChange) this.onModeChange(this.mode);
   }
 
@@ -109,7 +115,6 @@ export class CameraRig {
       const targetRoll = THREE.MathUtils.clamp(-headingRate * 0.04, -0.22, 0.22);
       this.roll = damp(this.roll, targetRoll, 6, dt);
     } else {
-      this.heading = damp(this.heading, 0, 2.4, dt);
       this.x += Math.sin(this.heading) * this.speed * dt;
       this.z += Math.cos(this.heading) * this.speed * dt;
       this.roll = damp(this.roll, 0, 5, dt);

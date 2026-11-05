@@ -250,7 +250,7 @@ async function start() {
     if (document.hidden) {
       soundtrack.context.suspend();
     } else if (soundtrack.playing) {
-      soundtrack.context.resume();
+      soundtrack.play();
     }
   });
 
