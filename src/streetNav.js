@@ -1,4 +1,4 @@
-import { AVENUE_EVERY, CELL } from './config.js';
+import { AVENUE_EVERY, CELL, STREET_SPEED } from './config.js';
 import { avenueCenterX } from './layout.js';
 
 const SPACING = CELL * AVENUE_EVERY;
@@ -24,6 +24,7 @@ export class StreetNav {
     blocksMin = 1,
     blocksMax = 2,
     turnRate = TURN_RATE,
+    baseSpeed = STREET_SPEED,
   } = {}) {
     this.x = x;
     this.z = z;
@@ -40,6 +41,8 @@ export class StreetNav {
     this.lastTurnDirection = 0;
     this.blocksSinceTurn = 0;
     this.blocksUntilTurn = this._nextBlocks();
+    this.baseSpeed = baseSpeed;
+    this.turnDelay = (this.blocksUntilTurn * SPACING) / this.baseSpeed;
     this.snapAxis = null;
     this.snapFrom = 0;
     this.snapTo = 0;
@@ -48,6 +51,7 @@ export class StreetNav {
 
   update(dt, speed) {
     this.time += dt;
+    this.turnDelay = Math.max(0, this.turnDelay - dt);
     const step = speed * dt * (this.turning ? TURN_SPEED_FACTOR : 1);
     const previousX = this.x;
     const previousZ = this.z;
@@ -109,6 +113,7 @@ export class StreetNav {
       if (this.rng() >= this.turnChance) return false;
     } else {
       this.blocksSinceTurn += 1;
+      if (this.turnDelay > 0) return false;
       if (this.blocksSinceTurn < this.blocksUntilTurn) return false;
     }
     return this._startTurn(alongZ);
@@ -130,6 +135,7 @@ export class StreetNav {
     this.turning = true;
     this.blocksSinceTurn = 0;
     this.blocksUntilTurn = this._nextBlocks();
+    this.turnDelay = (this.blocksUntilTurn * SPACING) / this.baseSpeed;
     return true;
   }
 

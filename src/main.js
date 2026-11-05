@@ -8,6 +8,7 @@ import { Soundtrack } from './audio.js';
 import { AVENUE_EVERY, CELL, FOG_DENSITY, SKY_HEIGHT, STREET_HEIGHT } from './config.js';
 import { City } from './city.js';
 import { CameraRig } from './cameraRig.js';
+import { Crowd } from './crowd.js';
 import { Escort } from './escort.js';
 import { Meteors } from './meteors.js';
 import { Traffic } from './traffic.js';
@@ -175,6 +176,16 @@ async function start() {
   const escort = new Escort();
   scene.add(escort.group);
   scene.add(escort.shadow);
+
+  const crowdEnabled = params.get('crowd') !== '0';
+  const crowd = crowdEnabled
+    ? new Crowd({
+        streetCapacity: tier === 'high' ? 160 : 90,
+        dockCapacity: tier === 'high' ? 24 : 12,
+        rng: mulberry32((Math.random() * 0x7fffffff) | 0),
+      })
+    : null;
+  if (crowd) scene.add(crowd.group);
 
   const meteorsEnabled = params.get('meteors') !== '0';
   const meteors = meteorsEnabled
@@ -390,6 +401,7 @@ async function start() {
     if (meteors) {
       meteors.update(dt, camera.position, rig.heading);
     }
+    if (crowd) crowd.update(dt, camera.position, elapsed);
     const turning = rig.nav?.turning === true;
     const heightT = THREE.MathUtils.clamp(
       (rig.height - STREET_HEIGHT) / (SKY_HEIGHT - STREET_HEIGHT),
@@ -451,6 +463,7 @@ async function start() {
     composer,
     traffic,
     escort,
+    crowd,
     meteors,
     soundtrack,
     soundToggle,

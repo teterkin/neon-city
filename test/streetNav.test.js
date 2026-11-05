@@ -19,6 +19,12 @@ function run(nav, seconds) {
   return state;
 }
 
+function runAt(nav, seconds, speed) {
+  const steps = Math.round(seconds / STEP);
+  for (let i = 0; i < steps; i += 1) nav.update(STEP, speed);
+  return nav.turns;
+}
+
 test('completeTurn finishes a turn and snaps onto the new lane', () => {
   const nav = new StreetNav({ x: avenueCenterX(0), z: 0, rng: () => 0 });
   for (let i = 0; i < 800 && nav.turns.length === 0; i += 1) nav.update(STEP, SPEED);
@@ -154,4 +160,23 @@ test('intersections repeat every avenue block', () => {
   assert.equal(spacing, 98);
   assert.equal(avenueCenterX(0), CELL / 2);
   assert.equal(avenueCenterX(CELL * AVENUE_EVERY), CELL * AVENUE_EVERY + CELL / 2);
+});
+
+test('high speed turns proportionally less often', () => {
+  const make = () =>
+    new StreetNav({ x: avenueCenterX(0), z: 0, rng: mulberry32(777) });
+  const slow = make();
+  const fast = make();
+  runAt(slow, 120, SPEED);
+  runAt(fast, 120, 75.6);
+
+  assert.ok(slow.turns.length >= 6, `slow turns ${slow.turns.length}`);
+  assert.ok(
+    fast.turns.length <= Math.ceil(slow.turns.length * 1.3),
+    `fast ${fast.turns.length} vs slow ${slow.turns.length}`,
+  );
+  for (let index = 1; index < fast.turns.length; index += 1) {
+    const gap = fast.turns[index].time - fast.turns[index - 1].time;
+    assert.ok(gap >= 4, `fast turn gap ${gap.toFixed(2)}s`);
+  }
 });
