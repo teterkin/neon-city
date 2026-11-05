@@ -154,3 +154,23 @@ test('escort sways a little more without leaving its line', () => {
   assert.ok(verticalPeak > 0.15 && verticalPeak < 0.25, `vertical ${verticalPeak.toFixed(3)}`);
   assert.ok(pitchPeak > 0.01 && pitchPeak < 0.04, `pitch ${pitchPeak.toFixed(3)}`);
 });
+
+test('police speeders are rare and 40% faster than passenger traffic', () => {
+  const rng = mulberry32(77);
+  const fleet = [];
+  for (let i = 0; i < 800; i += 1) fleet.push(spawnVehicle(CAMERA, rng, RADIUS));
+
+  const police = fleet.filter((vehicle) => vehicle.type === 'police');
+  const share = police.length / fleet.length;
+  assert.ok(share > 0.04 && share < 0.12, `police share ${(share * 100).toFixed(1)}%`);
+  assert.ok(police.length > 0);
+
+  const policeSpec = TRAFFIC_TYPES.police;
+  const passengerSpec = TRAFFIC_TYPES.passenger;
+  assert.ok(Math.abs(policeSpec.speedMin - passengerSpec.speedMin * 1.4) < 1e-9);
+  assert.ok(Math.abs(policeSpec.speedMax - passengerSpec.speedMax * 1.4) < 1e-9);
+  for (const vehicle of police) {
+    assert.ok(vehicle.speed >= policeSpec.speedMin && vehicle.speed <= policeSpec.speedMax);
+    assert.ok(vehicle.y >= policeSpec.heightMin && vehicle.y <= policeSpec.heightMax);
+  }
+});

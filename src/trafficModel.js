@@ -1,6 +1,11 @@
 import { AVENUE_EVERY, CELL } from './config.js';
 import { avenueCenterX } from './layout.js';
 
+export const POLICE_SPEED_SCALE = 1.4;
+const POLICE_SHARE = 0.08;
+const PASSENGER_SPEED_MIN = 16;
+const PASSENGER_SPEED_MAX = 27;
+
 export const TRAFFIC_TYPES = {
   cargo: {
     speedMin: 7,
@@ -14,8 +19,8 @@ export const TRAFFIC_TYPES = {
     tint: 0xffb85c,
   },
   passenger: {
-    speedMin: 16,
-    speedMax: 27,
+    speedMin: PASSENGER_SPEED_MIN,
+    speedMax: PASSENGER_SPEED_MAX,
     heightMin: 14,
     heightMax: 96,
     length: 3.4,
@@ -23,6 +28,16 @@ export const TRAFFIC_TYPES = {
     height: 0.7,
     weight: 0.6,
     tint: 0x34e5ff,
+  },
+  police: {
+    speedMin: PASSENGER_SPEED_MIN * POLICE_SPEED_SCALE,
+    speedMax: PASSENGER_SPEED_MAX * POLICE_SPEED_SCALE,
+    heightMin: 20,
+    heightMax: 70,
+    length: 3.8,
+    width: 1.8,
+    height: 0.8,
+    tint: 0x6fa8ff,
   },
 };
 
@@ -41,7 +56,13 @@ export function laneForIndex(index) {
 }
 
 export function spawnVehicle(camera, rng, radius = 320, laneSpec = null) {
-  const type = rng() < TRAFFIC_TYPES.cargo.weight ? 'cargo' : 'passenger';
+  const roll = rng();
+  const type =
+    roll < POLICE_SHARE
+      ? 'police'
+      : roll < POLICE_SHARE + TRAFFIC_TYPES.cargo.weight
+        ? 'cargo'
+        : 'passenger';
   const spec = TRAFFIC_TYPES[type];
 
   const alongZ = laneSpec ? laneSpec.axis === 'z' : rng() < 0.5;
@@ -65,7 +86,7 @@ export function spawnVehicle(camera, rng, radius = 320, laneSpec = null) {
       : -Math.PI / 2;
 
   const tint =
-    type === 'cargo'
+    type === 'cargo' || type === 'police'
       ? spec.tint
       : PASSENGER_TINTS[Math.floor(rng() * PASSENGER_TINTS.length)];
 

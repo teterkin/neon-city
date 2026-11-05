@@ -117,7 +117,8 @@ export class Traffic {
     this._matrix.compose(this._position, this._quaternion, this._scale);
 
     this.mesh.setMatrixAt(index, this._matrix);
-    this.kindAttribute.array[index] = vehicle.type === 'cargo' ? 0 : 1;
+    this.kindAttribute.array[index] =
+      vehicle.type === 'cargo' ? 0 : vehicle.type === 'police' ? 2 : 1;
     this.kindAttribute.needsUpdate = true;
 
     const rearOffset = spec.length * 0.55;
