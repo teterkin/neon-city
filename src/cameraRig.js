@@ -14,15 +14,23 @@ const SKY_PITCH = -0.24;
 const STREET_PITCH = -0.015;
 const DRAG_YAW = 0.0042;
 const DRAG_PITCH = 0.0032;
+const LOOK_YAW_RATE = 1.6;
+const LOOK_PITCH_RATE = 0.9;
+const PITCH_MIN = -0.5;
+const PITCH_MAX = 0.45;
+const SKY_YAW_LIMIT = 2.4;
+const STREET_YAW_LIMIT = 0.62;
+const LOOK_CODES = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
 
 function damp(current, target, lambda, dt) {
   return current + (target - current) * (1 - Math.exp(-lambda * dt));
 }
 
 export class CameraRig {
-  constructor(camera, domElement) {
+  constructor(camera, domElement, { keyTarget = typeof window !== 'undefined' ? window : null } = {}) {
     this.camera = camera;
     this.domElement = domElement;
+    this.keyTarget = keyTarget;
     this.mode = 'sky';
     this.x = avenueCenterX(0);
     this.z = 0;
@@ -39,6 +47,7 @@ export class CameraRig {
     this.lookPitch = 0;
     this.targetYaw = 0;
     this.targetPitch = 0;
+    this.lookKeys = new Set();
 
     this.dragging = false;
     this.pointerId = null;
@@ -90,6 +99,21 @@ export class CameraRig {
     return base + portraitTilt + this.lookPitch;
   }
 
+  get yawLimit() {
+    return this.mode === 'street' ? STREET_YAW_LIMIT : SKY_YAW_LIMIT;
+  }
+
+  handleLookKey(code, pressed) {
+    if (!LOOK_CODES.has(code)) return false;
+    if (pressed) {
+      this.lookKeys.add(code);
+      this.idleTime = 0;
+    } else {
+      this.lookKeys.delete(code);
+    }
+    return true;
+  }
+
   update(dt) {
     const portrait = this.camera.aspect < 1;
     const targetHeight =
@@ -120,7 +144,30 @@ export class CameraRig {
       this.roll = damp(this.roll, 0, 5, dt);
     }
 
-    if (!this.dragging) {
+    const yawInput =
+      (this.lookKeys.has('ArrowLeft') ? 1 : 0)
+      - (this.lookKeys.has('ArrowRight') ? 1 : 0);
+    const pitchInput =
+      (this.lookKeys.has('ArrowUp') ? 1 : 0)
+      - (this.lookKeys.has('ArrowDown') ? 1 : 0);
+
+    if (yawInput !== 0 || pitchInput !== 0) {
+      this.idleTime = 0;
+      const limit = this.yawLimit;
+      this.targetYaw = THREE.MathUtils.clamp(
+        this.targetYaw + yawInput * LOOK_YAW_RATE * dt,
+        -limit,
+        limit,
+      );
+      this.targetPitch = THREE.MathUtils.clamp(
+        this.targetPitch + pitchInput * LOOK_PITCH_RATE * dt,
+        PITCH_MIN,
+        PITCH_MAX,
+      );
+      if (this.onLook) this.onLook();
+    }
+
+    if (!this.dragging && this.lookKeys.size === 0) {
       this.idleTime += dt;
       if (this.idleTime > 1.4) {
         this.targetYaw = damp(this.targetYaw, 0, 1.4, dt);
@@ -138,6 +185,11 @@ export class CameraRig {
     this.domElement.removeEventListener('pointermove', this._onPointerMove);
     this.domElement.removeEventListener('pointerup', this._onPointerUp);
     this.domElement.removeEventListener('pointercancel', this._onPointerUp);
+    if (this.keyTarget) {
+      this.keyTarget.removeEventListener('keydown', this._onKeyDown);
+      this.keyTarget.removeEventListener('keyup', this._onKeyUp);
+      this.keyTarget.removeEventListener('blur', this._onBlur);
+    }
   }
 
   _apply() {
@@ -170,12 +222,12 @@ export class CameraRig {
       this.lastY = event.clientY;
       this.idleTime = 0;
 
-      const maxYaw = this.mode === 'street' ? 0.62 : 2.4;
+      const maxYaw = this.yawLimit;
       this.targetYaw = THREE.MathUtils.clamp(this.targetYaw - dx * DRAG_YAW, -maxYaw, maxYaw);
       this.targetPitch = THREE.MathUtils.clamp(
         this.targetPitch - dy * DRAG_PITCH,
-        -0.5,
-        0.45,
+        PITCH_MIN,
+        PITCH_MAX,
       );
       if (this.onLook) this.onLook();
     };
@@ -192,5 +244,19 @@ export class CameraRig {
     this.domElement.addEventListener('pointermove', this._onPointerMove);
     this.domElement.addEventListener('pointerup', this._onPointerUp);
     this.domElement.addEventListener('pointercancel', this._onPointerUp);
+
+    this._onKeyDown = (event) => {
+      if (this.handleLookKey(event.code, true)) event.preventDefault();
+    };
+    this._onKeyUp = (event) => {
+      if (this.handleLookKey(event.code, false)) event.preventDefault();
+    };
+    this._onBlur = () => this.lookKeys.clear();
+
+    if (this.keyTarget) {
+      this.keyTarget.addEventListener('keydown', this._onKeyDown);
+      this.keyTarget.addEventListener('keyup', this._onKeyUp);
+      this.keyTarget.addEventListener('blur', this._onBlur);
+    }
   }
 }
