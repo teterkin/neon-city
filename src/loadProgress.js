@@ -4,7 +4,7 @@ export const BOOT_STAGES = [
   { label: 'трафик и спидеры', weight: 2 },
   { label: 'компиляция шейдеров', weight: 2 },
   { label: 'загрузка звука', weight: 2 },
-  { label: 'первый кадр', weight: 1 },
+  { label: 'запускаю рендеринг', weight: 1 },
 ];
 
 export function stageProgress(stages, index) {
