@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { GROW_MS, PALETTE } from './config.js';
-import { HOLO_TINTS, holoPose, mediaFacadeFor } from './holograms.js';
+import {
+  HOLO_TINTS,
+  holoPose,
+  mediaFacadeFor,
+  secondaryMediaFacadeFor,
+} from './holograms.js';
 import { cellLayout, cellOf, ringCells } from './layout.js';
 import { createBuildingMaterial } from './materials/buildingMaterial.js';
 import { createHologramMaterial } from './materials/hologramMaterial.js';
@@ -62,17 +67,18 @@ export class City {
       this.group.add(this.reflection);
     }
 
+    this.holoCapacity = this.count * 2;
     this.holoGeometry = new THREE.PlaneGeometry(1, 1);
     this.holoSeedAttribute = new THREE.InstancedBufferAttribute(
-      new Float32Array(this.count),
+      new Float32Array(this.holoCapacity),
       1,
     );
     this.holoKindAttribute = new THREE.InstancedBufferAttribute(
-      new Float32Array(this.count),
+      new Float32Array(this.holoCapacity),
       1,
     );
     this.holoAspectAttribute = new THREE.InstancedBufferAttribute(
-      new Float32Array(this.count).fill(1),
+      new Float32Array(this.holoCapacity).fill(1),
       1,
     );
     this.holoSeedAttribute.setUsage(THREE.DynamicDrawUsage);
@@ -85,7 +91,7 @@ export class City {
     this.holograms = new THREE.InstancedMesh(
       this.holoGeometry,
       this.hologramMaterial,
-      this.count,
+      this.holoCapacity,
     );
     this.holograms.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.holograms.frustumCulled = false;
@@ -95,7 +101,7 @@ export class City {
 
     this.frameGeometry = new THREE.PlaneGeometry(1, 1);
     this.holoFrameSeedAttribute = new THREE.InstancedBufferAttribute(
-      new Float32Array(this.count),
+      new Float32Array(this.holoCapacity),
       1,
     );
     this.holoFrameSeedAttribute.setUsage(THREE.DynamicDrawUsage);
@@ -104,7 +110,7 @@ export class City {
     this.holoFrames = new THREE.InstancedMesh(
       this.frameGeometry,
       this.holoFrameMaterial,
-      this.count,
+      this.holoCapacity,
     );
     this.holoFrames.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.holoFrames.frustumCulled = false;
@@ -128,6 +134,7 @@ export class City {
     this.slotBuilding = new Uint8Array(this.count);
     this.slotLayout = new Array(this.count).fill(null);
     this.slotHolo = new Array(this.count).fill(null);
+    this.slotHolo2 = new Array(this.count).fill(null);
     this.stats = {
       rebuilds: 0,
       spawned: 0,
@@ -157,14 +164,16 @@ export class City {
     for (let slot = 0; slot < this.count; slot += 1) {
       this.mesh.setMatrixAt(slot, this._matrix);
       this.mesh.setColorAt(slot, BLACK);
-      this.holograms.setMatrixAt(slot, this._matrix);
-      this.holograms.setColorAt(slot, BLACK);
-      this.holoFrames.setMatrixAt(slot, this._matrix);
-      this.holoFrames.setColorAt(slot, BLACK);
       if (this.reflection) {
         this.reflection.setMatrixAt(slot, this._matrix);
         this.reflection.setColorAt(slot, BLACK);
       }
+    }
+    for (let instance = 0; instance < this.holoCapacity; instance += 1) {
+      this.holograms.setMatrixAt(instance, this._matrix);
+      this.holograms.setColorAt(instance, BLACK);
+      this.holoFrames.setMatrixAt(instance, this._matrix);
+      this.holoFrames.setColorAt(instance, BLACK);
     }
     this.mesh.instanceMatrix.needsUpdate = true;
     this.mesh.instanceColor.needsUpdate = true;
@@ -263,6 +272,7 @@ export class City {
       this.slotD[slot] = 0;
       this.slotLayout[slot] = null;
       this.slotHolo[slot] = null;
+      this.slotHolo2[slot] = null;
       this._writeMatrix(slot, 0);
       this._setColor(slot, BLACK, 0, 0);
       this._setHolo(slot, null);
@@ -273,6 +283,9 @@ export class City {
     this.stats.buildings += 1;
     this.slotLayout[slot] = layout;
     this.slotHolo[slot] = mediaFacadeFor(layout, this.holoProbability);
+    this.slotHolo2[slot] = this.slotHolo[slot]
+      ? secondaryMediaFacadeFor(layout, this.slotHolo[slot])
+      : null;
     if (this.slotHolo[slot]) this.stats.holograms += 1;
 
     this.slotX[slot] = layout.x;
@@ -292,6 +305,7 @@ export class City {
     if (this.slotHolo[slot]) this.stats.holograms -= 1;
     this.slotLayout[slot] = null;
     this.slotHolo[slot] = null;
+    this.slotHolo2[slot] = null;
     if (this.slotBuilding[slot] === 1) {
       this.slotBuilding[slot] = 0;
       this.stats.buildings -= 1;
@@ -317,24 +331,29 @@ export class City {
   }
 
   _setHolo(slot, spec) {
-    if (!spec) {
-      this.holograms.setColorAt(slot, BLACK);
-      this.holoFrames.setColorAt(slot, BLACK);
-      this.holoSeedAttribute.array[slot] = 0;
-      this.holoKindAttribute.array[slot] = 0;
-      this.holoFrameSeedAttribute.array[slot] = 0;
-    } else {
-      this._color.setHex(HOLO_TINTS[spec.tintIndex]);
-      this.holograms.setColorAt(slot, this._color);
-      this.holoFrames.setColorAt(slot, this._color);
-      this.holoSeedAttribute.array[slot] = spec.seed;
-      this.holoKindAttribute.array[slot] = spec.kind;
-      this.holoFrameSeedAttribute.array[slot] = spec.seed;
-    }
+    this._setHoloInstance(slot, spec);
+    this._setHoloInstance(this.count + slot, this.slotHolo2[slot]);
     this._dirtyHoloColor = true;
     this._dirtyHoloAttributes = true;
     this._dirtyFrameColor = true;
     this._dirtyFrameAttributes = true;
+  }
+
+  _setHoloInstance(instance, spec) {
+    if (!spec) {
+      this.holograms.setColorAt(instance, BLACK);
+      this.holoFrames.setColorAt(instance, BLACK);
+      this.holoSeedAttribute.array[instance] = 0;
+      this.holoKindAttribute.array[instance] = 0;
+      this.holoFrameSeedAttribute.array[instance] = 0;
+      return;
+    }
+    this._color.setHex(HOLO_TINTS[spec.tintIndex]);
+    this.holograms.setColorAt(instance, this._color);
+    this.holoFrames.setColorAt(instance, this._color);
+    this.holoSeedAttribute.array[instance] = spec.seed;
+    this.holoKindAttribute.array[instance] = spec.kind;
+    this.holoFrameSeedAttribute.array[instance] = spec.seed;
   }
 
   _writeMatrix(slot, height) {
@@ -360,39 +379,44 @@ export class City {
   }
 
   _writeHologram(slot, height) {
-    const spec = this.slotHolo[slot];
     const layout = this.slotLayout[slot];
-    if (!spec || !layout || height <= 0.01) {
-      this._matrix.makeScale(0, 0, 0);
-      this.holograms.setMatrixAt(slot, this._matrix);
-      this.holoFrames.setMatrixAt(slot, this._matrix);
-      this.holoAspectAttribute.array[slot] = 1;
-    } else {
-      const pose = holoPose(layout, spec, height);
-      this._matrix.makeRotationY(pose.rotationY);
-      this._scale.set(pose.width, pose.height, 1);
-      this._matrix.scale(this._scale);
-      this._matrix.setPosition(pose.x, pose.y, pose.z);
-      this.holograms.setMatrixAt(slot, this._matrix);
-
-      const normalX = Math.sin(pose.rotationY);
-      const normalZ = Math.cos(pose.rotationY);
-      this._matrix.makeRotationY(pose.rotationY);
-      this._scale.set(pose.width + 0.16, pose.height + 0.16, 1);
-      this._matrix.scale(this._scale);
-      this._matrix.setPosition(
-        pose.x - normalX * 0.012,
-        pose.y,
-        pose.z - normalZ * 0.012,
-      );
-      this.holoFrames.setMatrixAt(slot, this._matrix);
-
-      this.holoAspectAttribute.array[slot] =
-        pose.width / Math.max(0.001, pose.height);
-    }
+    this._writeHoloInstance(slot, this.slotHolo[slot], layout, height);
+    this._writeHoloInstance(this.count + slot, this.slotHolo2[slot], layout, height);
     this._dirtyHoloMatrix = true;
     this._dirtyHoloAttributes = true;
     this._dirtyFrameMatrix = true;
+  }
+
+  _writeHoloInstance(instance, spec, layout, height) {
+    if (!spec || !layout || height <= 0.01) {
+      this._matrix.makeScale(0, 0, 0);
+      this.holograms.setMatrixAt(instance, this._matrix);
+      this.holoFrames.setMatrixAt(instance, this._matrix);
+      this.holoAspectAttribute.array[instance] = 1;
+      return;
+    }
+
+    const pose = holoPose(layout, spec, height);
+    this._matrix.makeRotationY(pose.rotationY);
+    this._scale.set(pose.width, pose.height, 1);
+    this._matrix.scale(this._scale);
+    this._matrix.setPosition(pose.x, pose.y, pose.z);
+    this.holograms.setMatrixAt(instance, this._matrix);
+
+    const normalX = Math.sin(pose.rotationY);
+    const normalZ = Math.cos(pose.rotationY);
+    this._matrix.makeRotationY(pose.rotationY);
+    this._scale.set(pose.width + 0.16, pose.height + 0.16, 1);
+    this._matrix.scale(this._scale);
+    this._matrix.setPosition(
+      pose.x - normalX * 0.012,
+      pose.y,
+      pose.z - normalZ * 0.012,
+    );
+    this.holoFrames.setMatrixAt(instance, this._matrix);
+
+    this.holoAspectAttribute.array[instance] =
+      pose.width / Math.max(0.001, pose.height);
   }
 
   _animate(now) {

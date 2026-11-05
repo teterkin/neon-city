@@ -22,7 +22,7 @@ export function nearestAvenueFace(layout) {
 export function mediaFacadeFor(layout, probability = null, placement = null) {
   if (!layout) return null;
   if (probability !== null && probability <= 0) return null;
-  const chance = probability ?? (layout.h >= 60 ? 0.34 : 0.16);
+  const chance = probability ?? (layout.h >= 60 ? 0.4 : 0.2);
   if (hash2(layout.ix, layout.iz, 401) > chance) return null;
 
   const heightFrac = 0.25 + hash2(layout.ix, layout.iz, 409) * 0.17;
@@ -45,6 +45,36 @@ export function mediaFacadeFor(layout, probability = null, placement = null) {
     projection:
       placementType === 'corner' ? 0.7 + hash2(layout.ix, layout.iz, 457) * 0.7 : 0,
     cornerSide: hash2(layout.ix, layout.iz, 461) < 0.5 ? -1 : 1,
+  };
+}
+
+export function secondaryMediaFacadeFor(layout, primary) {
+  if (!layout || !primary) return null;
+  if (hash2(layout.ix, layout.iz, 467) >= 0.1) return null;
+
+  const axis = primary.face.startsWith('x') ? 'z' : 'x';
+  const side =
+    primary.placement === 'corner'
+      ? -primary.cornerSide
+      : (hash2(layout.ix, layout.iz, 479) < 0.5 ? -1 : 1);
+
+  const heightFrac = 0.2 + hash2(layout.ix, layout.iz, 487) * 0.14;
+  const topFrac = 0.86 + hash2(layout.ix, layout.iz, 491) * 0.04;
+  const widthFrac = 0.5 + hash2(layout.ix, layout.iz, 497) * 0.3;
+
+  return {
+    face: `${axis}${side < 0 ? '-' : '+'}`,
+    placement: 'wall',
+    widthFrac,
+    heightFrac,
+    centerFrac: topFrac - heightFrac / 2,
+    tintIndex:
+      Math.floor(hash2(layout.ix, layout.iz, 499) * HOLO_TINTS.length)
+      % HOLO_TINTS.length,
+    kind: Math.floor(hash2(layout.ix, layout.iz, 503) * 3),
+    seed: hash2(layout.ix, layout.iz, 509),
+    projection: 0,
+    cornerSide: side,
   };
 }
 

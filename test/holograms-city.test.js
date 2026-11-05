@@ -23,7 +23,7 @@ test('city instances media facades on buildings', () => {
   city.update(GROW_MS + 1, atCell(8, 8));
 
   assert.equal(city.holograms.isInstancedMesh, true);
-  assert.equal(city.holograms.count, 48);
+  assert.equal(city.holograms.count, city.count * 2);
 
   const slot = firstBuildingSlot(city);
   const cell = city.slotCell(slot);
@@ -71,7 +71,7 @@ test('media facades get a physical frame behind the screen', () => {
   city.update(GROW_MS + 1, atCell(8, 8));
 
   assert.equal(city.holoFrames.isInstancedMesh, true);
-  assert.equal(city.holoFrames.count, 48);
+  assert.equal(city.holoFrames.count, city.count * 2);
 
   const slot = firstBuildingSlot(city);
   const cell = city.slotCell(slot);
@@ -110,6 +110,7 @@ test('media panels intersect the rendered building volume', () => {
   const building = new THREE.Box3();
   const panel = new THREE.Box3();
   let checked = 0;
+  let secondary = 0;
 
   for (let slot = 0; slot < city.count; slot += 1) {
     const cell = city.slotCell(slot);
@@ -131,9 +132,39 @@ test('media panels intersect the rendered building volume', () => {
         + ` z ${panel.min.z.toFixed(2)}..${panel.max.z.toFixed(2)}`,
     );
     checked += 1;
+
+    city.holograms.getMatrixAt(city.count + slot, matrix);
+    if (matrix.elements[5] === 0) continue;
+    panel.copy(city.holoGeometry.boundingBox).applyMatrix4(matrix);
+    assert.ok(
+      building.clone().expandByScalar(0.05).intersectsBox(panel),
+      `secondary panel ${cell.ix}:${cell.iz} floats:`
+        + ` panel x ${panel.min.x.toFixed(2)}..${panel.max.x.toFixed(2)}`
+        + ` z ${panel.min.z.toFixed(2)}..${panel.max.z.toFixed(2)}`,
+    );
+    secondary += 1;
   }
 
   assert.ok(checked > 20, `checked ${checked} panels`);
+  assert.ok(secondary > 0, `checked ${secondary} secondary panels`);
+  city.dispose();
+});
+
+test('some buildings carry a second media facade instance', () => {
+  const city = new City({ cols: 16, rows: 12, holoProbability: 1, reflection: false });
+  city.update(0, atCell(8, 8));
+  city.update(GROW_MS + 1, atCell(8, 8));
+
+  assert.equal(city.holograms.count, city.count * 2);
+  assert.equal(city.holoFrames.count, city.count * 2);
+
+  const matrix = new THREE.Matrix4();
+  let secondary = 0;
+  for (let slot = 0; slot < city.count; slot += 1) {
+    city.holograms.getMatrixAt(city.count + slot, matrix);
+    if (matrix.elements[5] !== 0) secondary += 1;
+  }
+  assert.ok(secondary > 0, 'no secondary panels written');
   city.dispose();
 });
 
@@ -144,7 +175,7 @@ test('holoProbability zero leaves every facade empty', () => {
 
   assert.equal(city.stats.holograms, 0);
   const matrix = new THREE.Matrix4();
-  for (let slot = 0; slot < city.count; slot += 1) {
+  for (let slot = 0; slot < city.holograms.count; slot += 1) {
     city.holograms.getMatrixAt(slot, matrix);
     assert.equal(matrix.elements[5], 0);
   }

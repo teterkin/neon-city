@@ -6,6 +6,7 @@ import {
   holoPose,
   mediaFacadeFor,
   nearestAvenueFace,
+  secondaryMediaFacadeFor,
 } from '../src/holograms.js';
 
 const layout = cellLayout(1, 3);
@@ -28,6 +29,37 @@ test('facades face the nearest avenue', () => {
   assert.equal(nearestAvenueFace(cellLayout(6, 3)), 'x+');
   assert.equal(nearestAvenueFace(cellLayout(3, 1)), 'z-');
   assert.equal(nearestAvenueFace(cellLayout(3, 6)), 'z+');
+});
+
+test('default ad density covers roughly a quarter of buildings', () => {
+  let buildings = 0;
+  let short = 0;
+  let shortAds = 0;
+  let tall = 0;
+  let tallAds = 0;
+  for (let ix = 1; ix <= 200; ix += 1) {
+    for (let iz = 1; iz <= 200; iz += 1) {
+      const cell = cellLayout(ix, iz);
+      if (!cell) continue;
+      buildings += 1;
+      const spec = mediaFacadeFor(cell, null);
+      if (cell.h >= 60) {
+        tall += 1;
+        if (spec) tallAds += 1;
+      } else {
+        short += 1;
+        if (spec) shortAds += 1;
+      }
+    }
+  }
+
+  const overall = (shortAds + tallAds) / buildings;
+  const shortShare = shortAds / short;
+  const tallShare = tallAds / tall;
+  assert.ok(overall > 0.25 && overall < 0.29, `overall ${(overall * 100).toFixed(1)}%`);
+  assert.ok(shortShare > 0.19 && shortShare < 0.21, `short ${(shortShare * 100).toFixed(1)}%`);
+  assert.ok(tallShare > 0.38 && tallShare < 0.42, `tall ${(tallShare * 100).toFixed(1)}%`);
+  assert.ok(buildings > 20000);
 });
 
 test('facade spec stays inside the chosen wall', () => {
@@ -212,4 +244,57 @@ test('holoPose puts a wall plane just outside the facade', () => {
       assert.equal(pose.rotationY, 0);
     }
   }
+});
+
+test('secondary facades add a rare wall panel on a perpendicular side', () => {
+  let buildings = 0;
+  let secondary = 0;
+  for (let ix = 1; ix <= 100; ix += 1) {
+    for (let iz = 1; iz <= 100; iz += 1) {
+      const cell = cellLayout(ix, iz);
+      if (!cell) continue;
+      buildings += 1;
+      const primary = mediaFacadeFor(cell, 1);
+      const spec = secondaryMediaFacadeFor(cell, primary);
+      assert.deepEqual(secondaryMediaFacadeFor(cell, primary), spec);
+      if (!spec) continue;
+
+      secondary += 1;
+      assert.equal(spec.placement, 'wall');
+      assert.notEqual(
+        spec.face.startsWith('x'),
+        primary.face.startsWith('x'),
+        `secondary ${spec.face} is not perpendicular to ${primary.face}`,
+      );
+
+      const pose = holoPose(cell, spec, cell.h);
+      const frameWidth = pose.width + 0.16;
+      const top = spec.centerFrac + spec.heightFrac / 2;
+      const bottom = spec.centerFrac - spec.heightFrac / 2;
+      assert.ok(top >= 0.84 && top <= 0.91, `top ${top}`);
+      assert.ok(bottom >= 0.38, `bottom ${bottom}`);
+
+      if (spec.face.startsWith('x')) {
+        const wall = spec.face === 'x-' ? cell.x : cell.x + cell.w;
+        assert.ok(Math.abs(pose.x - wall) <= 0.03, 'secondary off the wall');
+        assert.ok(pose.z - frameWidth / 2 >= cell.z - 1e-6);
+        assert.ok(pose.z + frameWidth / 2 <= cell.z + cell.d + 1e-6);
+      } else {
+        const wall = spec.face === 'z-' ? cell.z : cell.z + cell.d;
+        assert.ok(Math.abs(pose.z - wall) <= 0.03, 'secondary off the wall');
+        assert.ok(pose.x - frameWidth / 2 >= cell.x - 1e-6);
+        assert.ok(pose.x + frameWidth / 2 <= cell.x + cell.w + 1e-6);
+      }
+    }
+  }
+
+  const share = secondary / buildings;
+  assert.ok(share > 0.08 && share < 0.12, `share ${(share * 100).toFixed(1)}%`);
+  assert.ok(buildings > 7000);
+});
+
+test('secondary facades need a primary facade', () => {
+  const cell = cellLayout(1, 3);
+  assert.equal(secondaryMediaFacadeFor(null, mediaFacadeFor(cell, 1)), null);
+  assert.equal(secondaryMediaFacadeFor(cell, null), null);
 });
