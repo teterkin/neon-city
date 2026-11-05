@@ -3,6 +3,8 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import trackUrl from './assets/neon-drift-108bpm.mp3';
+import { Soundtrack } from './audio.js';
 import { AVENUE_EVERY, CELL, FOG_DENSITY } from './config.js';
 import { City } from './city.js';
 import { CameraRig } from './cameraRig.js';
@@ -99,7 +101,9 @@ async function start() {
           webgl2: gl.version === 2,
         });
   const adaptive = params.get('adaptive') !== '0';
+  const soundEnabled = params.get('sound') !== '0';
   const settings = qualitySettings(tier);
+  const soundtrack = soundEnabled ? new Soundtrack({ url: trackUrl }) : null;
 
   const renderer = new THREE.WebGLRenderer({
     canvas,
@@ -187,12 +191,17 @@ async function start() {
 
   setStage(4);
   await paint();
+  if (soundtrack) await soundtrack.prepare();
+
+  setStage(5);
+  await paint();
   composer.render();
 
   const modeLabel = document.getElementById('mode-label');
   const fpsLabel = document.getElementById('fps-label');
   const buildingsLabel = document.getElementById('buildings-label');
   const toggle = document.getElementById('mode-toggle');
+  const soundToggle = document.getElementById('sound-toggle');
   const turnFlash = document.getElementById('turn-flash');
 
   function syncModeUi() {
@@ -206,9 +215,43 @@ async function start() {
     syncModeUi();
   }
 
+  function syncSoundUi() {
+    if (!soundToggle) return;
+    const playing = soundtrack?.playing === true;
+    soundToggle.classList.toggle('is-on', playing);
+    soundToggle.setAttribute('aria-pressed', String(playing));
+    soundToggle.setAttribute('aria-label', playing ? 'Выключить звук' : 'Включить звук');
+  }
+
+  function toggleSound() {
+    if (!soundtrack || !soundtrack.available) return;
+    soundtrack.toggle();
+    syncSoundUi();
+  }
+
+  if (soundtrack && soundToggle) {
+    soundtrack.onChange = syncSoundUi;
+    soundToggle.disabled = !soundtrack.available;
+    if (!soundtrack.available) soundToggle.title = 'Звук недоступен';
+    soundToggle.addEventListener('click', toggleSound);
+    syncSoundUi();
+  } else if (soundToggle) {
+    soundToggle.hidden = true;
+  }
+
   toggle.addEventListener('click', toggleMode);
   window.addEventListener('keydown', (event) => {
     if (event.code === 'KeyV') toggleMode();
+    if (event.code === 'KeyM') toggleSound();
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (!soundtrack?.context) return;
+    if (document.hidden) {
+      soundtrack.context.suspend();
+    } else if (soundtrack.playing) {
+      soundtrack.context.resume();
+    }
   });
 
   window.addEventListener('resize', () => {
@@ -305,6 +348,8 @@ async function start() {
     traffic,
     escort,
     meteors,
+    soundtrack,
+    soundToggle,
     tier,
     settings,
     fogDensity: FOG_DENSITY,

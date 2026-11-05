@@ -4,7 +4,7 @@ import path from 'node:path';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const bundle = path.join(root, 'neon-city.html');
-const LIMIT = 4_500_000;
+const LIMIT = 3_000_000;
 
 const problems = [];
 
@@ -27,6 +27,8 @@ if (html) {
   if (!html.includes('WebGLRenderer')) problems.push('three.js is not inlined');
   if (!html.includes('NEON')) problems.push('scene markup missing');
   if (!html.includes('instanceMatrix')) problems.push('city shaders missing');
+  if (!html.includes('data:audio/mpeg;base64')) problems.push('soundtrack is not embedded');
+  if (!html.includes('AudioContext')) problems.push('audio player missing');
 
   const assets = [...html.matchAll(/<script[^>]+src=["']([^"']+)/gi)].map((m) => m[1]);
   if (assets.length) problems.push(`script assets: ${assets.join(', ')}`);

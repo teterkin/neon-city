@@ -3,6 +3,7 @@ export const BOOT_STAGES = [
   { label: 'генерация города', weight: 4 },
   { label: 'трафик и спидеры', weight: 2 },
   { label: 'компиляция шейдеров', weight: 2 },
+  { label: 'загрузка звука', weight: 2 },
   { label: 'первый кадр', weight: 1 },
 ];
 

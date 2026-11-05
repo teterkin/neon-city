@@ -106,6 +106,62 @@ body {
   box-shadow: 0 0 30px rgba(255, 79, 200, 0.35);
 }
 
+.sound-toggle {
+  position: fixed;
+  top: calc(16px + env(safe-area-inset-top));
+  right: calc(18px + env(safe-area-inset-right));
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 1px solid rgba(79, 246, 255, 0.32);
+  border-radius: 50%;
+  background: rgba(6, 12, 26, 0.55);
+  backdrop-filter: blur(8px);
+  color: #cffbff;
+  cursor: pointer;
+  opacity: 0;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease,
+    opacity 900ms ease;
+}
+
+body.ready .sound-toggle {
+  opacity: 1;
+}
+
+.sound-toggle .icon {
+  display: none;
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sound-toggle:not(.is-on) .icon-off,
+.sound-toggle.is-on .icon-on {
+  display: block;
+}
+
+.sound-toggle.is-on {
+  border-color: rgba(255, 79, 200, 0.65);
+  color: #ffd6f4;
+  box-shadow: 0 0 26px rgba(255, 79, 200, 0.3);
+}
+
+.sound-toggle[disabled] {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.sound-toggle:active:not([disabled]) {
+  transform: scale(0.94);
+}
+
 #turn-flash {
   position: fixed;
   top: calc(20px + env(safe-area-inset-top));
