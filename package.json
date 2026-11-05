@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "build:single": "vite build && node scripts/pack.mjs",
     "verify:bundle": "node scripts/verify-bundle.mjs",
+    "track": "node scripts/generate-track.mjs",
     "test": "node --test"
   },
   "dependencies": {
