@@ -70,6 +70,35 @@ test('avenue cells stay invisible', () => {
   city.dispose();
 });
 
+test('building instances fill the footprint declared by the layout', () => {
+  const city = makeCity();
+  city.update(0, atCell(10, 10));
+  city.update(GROW_MS + 1, atCell(10, 10));
+  city.geometry.computeBoundingBox();
+
+  const matrix = new THREE.Matrix4();
+  let checked = 0;
+  for (let slot = 0; slot < city.count; slot += 1) {
+    const cell = city.slotCell(slot);
+    if (!cell) continue;
+    const layout = cellLayout(cell.ix, cell.iz);
+    if (!layout) continue;
+
+    city.mesh.getMatrixAt(slot, matrix);
+    const box = city.geometry.boundingBox.clone().applyMatrix4(matrix);
+    const near = 1e-4;
+    assert.ok(Math.abs(box.min.x - layout.x) < near, `min x ${box.min.x} vs ${layout.x}`);
+    assert.ok(Math.abs(box.max.x - (layout.x + layout.w)) < near);
+    assert.ok(Math.abs(box.min.z - layout.z) < near, `min z ${box.min.z} vs ${layout.z}`);
+    assert.ok(Math.abs(box.max.z - (layout.z + layout.d)) < near);
+    assert.ok(Math.abs(box.min.y) < near);
+    assert.ok(Math.abs(box.max.y - layout.h) < near);
+    checked += 1;
+  }
+  assert.ok(checked > 20, `checked ${checked} buildings`);
+  city.dispose();
+});
+
 test('same camera cell does not rebuild or respawn anything', () => {
   const city = makeCity();
   city.update(0, atCell(4, 4));
@@ -146,7 +175,9 @@ test('reflection can be disabled', () => {
   const city = makeCity({ reflection: false });
   city.update(0, atCell(2, 2));
   assert.equal(city.reflection, null);
-  assert.equal(city.group.children.length, 1);
+  assert.equal(city.group.children.length, 3);
+  assert.ok(city.group.children.includes(city.holograms));
+  assert.ok(city.group.children.includes(city.holoFrames));
   city.dispose();
 });
 

@@ -102,6 +102,12 @@ async function start() {
         });
   const adaptive = params.get('adaptive') !== '0';
   const soundEnabled = params.get('sound') !== '0';
+  const holoRaw = params.get('holo');
+  const holoValue = Number(holoRaw);
+  const holoProbability =
+    holoRaw === null || !Number.isFinite(holoValue)
+      ? null
+      : Math.min(1, Math.max(0, holoValue));
   const settings = qualitySettings(tier);
   const soundtrack = soundEnabled ? new Soundtrack({ url: trackUrl }) : null;
 
@@ -133,6 +139,7 @@ async function start() {
     cols: settings.ring,
     rows: settings.ring,
     reflection: settings.reflection,
+    holoProbability,
   });
   scene.add(city.group);
 

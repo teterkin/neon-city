@@ -1,20 +1,30 @@
 import * as THREE from 'three';
 import { GROW_MS, PALETTE } from './config.js';
+import { HOLO_TINTS, holoPose, mediaFacadeFor } from './holograms.js';
 import { cellLayout, cellOf, ringCells } from './layout.js';
 import { createBuildingMaterial } from './materials/buildingMaterial.js';
+import { createHologramMaterial } from './materials/hologramMaterial.js';
+import { createHologramFrameMaterial } from './materials/hologramFrameMaterial.js';
 
 const IDENTITY = new THREE.Quaternion();
 const BLACK = new THREE.Color(0x000000);
+
 
 export function easeOutCubic(t) {
   return 1 - Math.pow(1 - t, 3);
 }
 
 export class City {
-  constructor({ cols = 52, rows = cols, reflection = true } = {}) {
+  constructor({
+    cols = 52,
+    rows = cols,
+    reflection = true,
+    holoProbability = null,
+  } = {}) {
     this.cols = cols;
     this.rows = rows;
     this.count = cols * rows;
+    this.holoProbability = holoProbability;
 
     this.group = new THREE.Group();
     this.group.name = 'city';
@@ -52,6 +62,55 @@ export class City {
       this.group.add(this.reflection);
     }
 
+    this.holoGeometry = new THREE.PlaneGeometry(1, 1);
+    this.holoSeedAttribute = new THREE.InstancedBufferAttribute(
+      new Float32Array(this.count),
+      1,
+    );
+    this.holoKindAttribute = new THREE.InstancedBufferAttribute(
+      new Float32Array(this.count),
+      1,
+    );
+    this.holoAspectAttribute = new THREE.InstancedBufferAttribute(
+      new Float32Array(this.count).fill(1),
+      1,
+    );
+    this.holoSeedAttribute.setUsage(THREE.DynamicDrawUsage);
+    this.holoKindAttribute.setUsage(THREE.DynamicDrawUsage);
+    this.holoAspectAttribute.setUsage(THREE.DynamicDrawUsage);
+    this.holoGeometry.setAttribute('aSeed', this.holoSeedAttribute);
+    this.holoGeometry.setAttribute('aKind', this.holoKindAttribute);
+    this.holoGeometry.setAttribute('aAspect', this.holoAspectAttribute);
+    this.hologramMaterial = createHologramMaterial();
+    this.holograms = new THREE.InstancedMesh(
+      this.holoGeometry,
+      this.hologramMaterial,
+      this.count,
+    );
+    this.holograms.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.holograms.frustumCulled = false;
+    this.holograms.renderOrder = 1;
+    this.holograms.name = 'holograms';
+    this.group.add(this.holograms);
+
+    this.frameGeometry = new THREE.PlaneGeometry(1, 1);
+    this.holoFrameSeedAttribute = new THREE.InstancedBufferAttribute(
+      new Float32Array(this.count),
+      1,
+    );
+    this.holoFrameSeedAttribute.setUsage(THREE.DynamicDrawUsage);
+    this.frameGeometry.setAttribute('aSeed', this.holoFrameSeedAttribute);
+    this.holoFrameMaterial = createHologramFrameMaterial();
+    this.holoFrames = new THREE.InstancedMesh(
+      this.frameGeometry,
+      this.holoFrameMaterial,
+      this.count,
+    );
+    this.holoFrames.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.holoFrames.frustumCulled = false;
+    this.holoFrames.name = 'hologram-frames';
+    this.group.add(this.holoFrames);
+
     this.assigned = new Map();
     this.free = [];
     for (let slot = this.count - 1; slot >= 0; slot -= 1) this.free.push(slot);
@@ -67,13 +126,15 @@ export class City {
     this.slotActive = new Uint8Array(this.count);
     this.slotAssigned = new Uint8Array(this.count);
     this.slotBuilding = new Uint8Array(this.count);
-
+    this.slotLayout = new Array(this.count).fill(null);
+    this.slotHolo = new Array(this.count).fill(null);
     this.stats = {
       rebuilds: 0,
       spawned: 0,
       released: 0,
       active: 0,
       buildings: 0,
+      holograms: 0,
       cell: { ix: Number.NaN, iz: Number.NaN },
     };
 
@@ -85,11 +146,21 @@ export class City {
     this._dirtyMatrix = false;
     this._dirtyColor = false;
     this._dirtyAttributes = false;
+    this._dirtyHoloMatrix = false;
+    this._dirtyHoloColor = false;
+    this._dirtyHoloAttributes = false;
+    this._dirtyFrameMatrix = false;
+    this._dirtyFrameColor = false;
+    this._dirtyFrameAttributes = false;
 
     this._matrix.makeScale(0, 0, 0);
     for (let slot = 0; slot < this.count; slot += 1) {
       this.mesh.setMatrixAt(slot, this._matrix);
       this.mesh.setColorAt(slot, BLACK);
+      this.holograms.setMatrixAt(slot, this._matrix);
+      this.holograms.setColorAt(slot, BLACK);
+      this.holoFrames.setMatrixAt(slot, this._matrix);
+      this.holoFrames.setColorAt(slot, BLACK);
       if (this.reflection) {
         this.reflection.setMatrixAt(slot, this._matrix);
         this.reflection.setColorAt(slot, BLACK);
@@ -97,6 +168,10 @@ export class City {
     }
     this.mesh.instanceMatrix.needsUpdate = true;
     this.mesh.instanceColor.needsUpdate = true;
+    this.holograms.instanceMatrix.needsUpdate = true;
+    this.holograms.instanceColor.needsUpdate = true;
+    this.holoFrames.instanceMatrix.needsUpdate = true;
+    this.holoFrames.instanceColor.needsUpdate = true;
     if (this.reflection) {
       this.reflection.instanceMatrix.needsUpdate = true;
       this.reflection.instanceColor.needsUpdate = true;
@@ -125,14 +200,22 @@ export class City {
 
   setTime(seconds) {
     this.material.uniforms.uTime.value = seconds;
+    this.hologramMaterial.uniforms.uTime.value = seconds;
+    this.holoFrameMaterial.uniforms.uTime.value = seconds;
     if (this.reflectionMaterial) this.reflectionMaterial.uniforms.uTime.value = seconds;
   }
 
   dispose() {
     this.mesh.dispose();
     if (this.reflection) this.reflection.dispose();
+    this.holograms.dispose();
+    this.holoFrames.dispose();
     this.geometry.dispose();
+    this.holoGeometry.dispose();
+    this.frameGeometry.dispose();
     this.material.dispose();
+    this.hologramMaterial.dispose();
+    this.holoFrameMaterial.dispose();
     if (this.reflectionMaterial) this.reflectionMaterial.dispose();
     this.group.clear();
     this.assigned.clear();
@@ -178,13 +261,19 @@ export class City {
       this.slotActive[slot] = 0;
       this.slotW[slot] = 0;
       this.slotD[slot] = 0;
+      this.slotLayout[slot] = null;
+      this.slotHolo[slot] = null;
       this._writeMatrix(slot, 0);
       this._setColor(slot, BLACK, 0, 0);
+      this._setHolo(slot, null);
       return;
     }
 
     this.slotBuilding[slot] = 1;
     this.stats.buildings += 1;
+    this.slotLayout[slot] = layout;
+    this.slotHolo[slot] = mediaFacadeFor(layout, this.holoProbability);
+    if (this.slotHolo[slot]) this.stats.holograms += 1;
 
     this.slotX[slot] = layout.x;
     this.slotZ[slot] = layout.z;
@@ -196,9 +285,13 @@ export class City {
     this._writeMatrix(slot, 0);
     this._color.setHex(PALETTE[layout.colorIndex].tint);
     this._setColor(slot, this._color, layout.seed, layout.glow);
+    this._setHolo(slot, this.slotHolo[slot]);
   }
 
   _release(slot) {
+    if (this.slotHolo[slot]) this.stats.holograms -= 1;
+    this.slotLayout[slot] = null;
+    this.slotHolo[slot] = null;
     if (this.slotBuilding[slot] === 1) {
       this.slotBuilding[slot] = 0;
       this.stats.buildings -= 1;
@@ -211,6 +304,7 @@ export class City {
     this.slotH[slot] = 0;
     this._writeMatrix(slot, 0);
     this._setColor(slot, BLACK, 0, 0);
+    this._setHolo(slot, null);
   }
 
   _setColor(slot, color, seed, glow) {
@@ -222,25 +316,83 @@ export class City {
     this._dirtyAttributes = true;
   }
 
+  _setHolo(slot, spec) {
+    if (!spec) {
+      this.holograms.setColorAt(slot, BLACK);
+      this.holoFrames.setColorAt(slot, BLACK);
+      this.holoSeedAttribute.array[slot] = 0;
+      this.holoKindAttribute.array[slot] = 0;
+      this.holoFrameSeedAttribute.array[slot] = 0;
+    } else {
+      this._color.setHex(HOLO_TINTS[spec.tintIndex]);
+      this.holograms.setColorAt(slot, this._color);
+      this.holoFrames.setColorAt(slot, this._color);
+      this.holoSeedAttribute.array[slot] = spec.seed;
+      this.holoKindAttribute.array[slot] = spec.kind;
+      this.holoFrameSeedAttribute.array[slot] = spec.seed;
+    }
+    this._dirtyHoloColor = true;
+    this._dirtyHoloAttributes = true;
+    this._dirtyFrameColor = true;
+    this._dirtyFrameAttributes = true;
+  }
+
   _writeMatrix(slot, height) {
     const width = this.slotW[slot];
     const depth = this.slotD[slot];
     const x = this.slotX[slot];
     const z = this.slotZ[slot];
 
-    this._position.set(x, 0, z);
+    this._position.set(x + width / 2, 0, z + depth / 2);
     this._scale.set(width, height, depth);
     this._matrix.compose(this._position, IDENTITY, this._scale);
     this.mesh.setMatrixAt(slot, this._matrix);
 
     if (this.reflection) {
-      this._position.set(x, -0.03, z);
+      this._position.set(x + width / 2, -0.03, z + depth / 2);
       this._scale.set(width, -height, depth);
       this._mirrored.compose(this._position, IDENTITY, this._scale);
       this.reflection.setMatrixAt(slot, this._mirrored);
     }
 
+    this._writeHologram(slot, height);
     this._dirtyMatrix = true;
+  }
+
+  _writeHologram(slot, height) {
+    const spec = this.slotHolo[slot];
+    const layout = this.slotLayout[slot];
+    if (!spec || !layout || height <= 0.01) {
+      this._matrix.makeScale(0, 0, 0);
+      this.holograms.setMatrixAt(slot, this._matrix);
+      this.holoFrames.setMatrixAt(slot, this._matrix);
+      this.holoAspectAttribute.array[slot] = 1;
+    } else {
+      const pose = holoPose(layout, spec, height);
+      this._matrix.makeRotationY(pose.rotationY);
+      this._scale.set(pose.width, pose.height, 1);
+      this._matrix.scale(this._scale);
+      this._matrix.setPosition(pose.x, pose.y, pose.z);
+      this.holograms.setMatrixAt(slot, this._matrix);
+
+      const normalX = Math.sin(pose.rotationY);
+      const normalZ = Math.cos(pose.rotationY);
+      this._matrix.makeRotationY(pose.rotationY);
+      this._scale.set(pose.width + 0.16, pose.height + 0.16, 1);
+      this._matrix.scale(this._scale);
+      this._matrix.setPosition(
+        pose.x - normalX * 0.012,
+        pose.y,
+        pose.z - normalZ * 0.012,
+      );
+      this.holoFrames.setMatrixAt(slot, this._matrix);
+
+      this.holoAspectAttribute.array[slot] =
+        pose.width / Math.max(0.001, pose.height);
+    }
+    this._dirtyHoloMatrix = true;
+    this._dirtyHoloAttributes = true;
+    this._dirtyFrameMatrix = true;
   }
 
   _animate(now) {
@@ -275,6 +427,32 @@ export class City {
       this.seedAttribute.needsUpdate = true;
       this.glowAttribute.needsUpdate = true;
       this._dirtyAttributes = false;
+    }
+    if (this._dirtyHoloMatrix) {
+      this.holograms.instanceMatrix.needsUpdate = true;
+      this._dirtyHoloMatrix = false;
+    }
+    if (this._dirtyHoloColor) {
+      this.holograms.instanceColor.needsUpdate = true;
+      this._dirtyHoloColor = false;
+    }
+    if (this._dirtyHoloAttributes) {
+      this.holoSeedAttribute.needsUpdate = true;
+      this.holoKindAttribute.needsUpdate = true;
+      this.holoAspectAttribute.needsUpdate = true;
+      this._dirtyHoloAttributes = false;
+    }
+    if (this._dirtyFrameMatrix) {
+      this.holoFrames.instanceMatrix.needsUpdate = true;
+      this._dirtyFrameMatrix = false;
+    }
+    if (this._dirtyFrameColor) {
+      this.holoFrames.instanceColor.needsUpdate = true;
+      this._dirtyFrameColor = false;
+    }
+    if (this._dirtyFrameAttributes) {
+      this.holoFrameSeedAttribute.needsUpdate = true;
+      this._dirtyFrameAttributes = false;
     }
   }
 }
