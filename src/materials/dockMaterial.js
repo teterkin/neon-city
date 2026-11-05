@@ -36,10 +36,16 @@ const FRAGMENT = /* glsl */ `
     float ringInner = 1.0 - smoothstep(0.015, 0.045, abs(radius - 0.55));
     float ringOuter = 1.0 - smoothstep(0.012, 0.036, abs(radius - 0.78));
     float ringEdge = 1.0 - smoothstep(0.01, 0.03, abs(radius - 0.95));
-    float center = 1.0 - smoothstep(0.0, 0.06, radius);
+
+    float pillar = 1.0 - smoothstep(0.03, 0.06, abs(abs(p.x) - 0.13));
+    float stem = 1.0 - smoothstep(0.18, 0.22, abs(p.y));
+    float crossBar =
+      (1.0 - smoothstep(0.02, 0.04, abs(p.y)))
+      * (1.0 - smoothstep(0.09, 0.13, abs(p.x)));
+    float letter = max(pillar * stem, crossBar);
 
     float dashes = 1.0 - smoothstep(0.2, 0.45, fract(atan(p.y, p.x) * 6.0 + uTime * 0.12));
-    float glow = (ringInner + ringOuter * (0.55 + 0.45 * dashes) + ringEdge * 0.8 + center * 0.6) * cap;
+    float glow = (ringInner + ringOuter * (0.55 + 0.45 * dashes) + ringEdge * 0.8 + letter * 0.9) * cap;
 
     float pulse = 0.85 + 0.15 * sin(uTime * 1.6);
     vec3 color = vec3(0.012, 0.016, 0.024);
