@@ -7,6 +7,7 @@ import {
   secondaryMediaFacadeFor,
 } from './holograms.js';
 import { cellLayout, cellOf, ringCells } from './layout.js';
+import { FactoryParts } from './factoryParts.js';
 import { createBuildingMaterial } from './materials/buildingMaterial.js';
 import { createHologramMaterial } from './materials/hologramMaterial.js';
 import { createHologramFrameMaterial } from './materials/hologramFrameMaterial.js';
@@ -117,6 +118,9 @@ export class City {
     this.holoFrames.name = 'hologram-frames';
     this.group.add(this.holoFrames);
 
+    this.factoryParts = new FactoryParts(this.count);
+    this.group.add(this.factoryParts.group);
+
     this.assigned = new Map();
     this.free = [];
     for (let slot = this.count - 1; slot >= 0; slot -= 1) this.free.push(slot);
@@ -141,6 +145,7 @@ export class City {
       released: 0,
       active: 0,
       buildings: 0,
+      factories: 0,
       holograms: 0,
       cell: { ix: Number.NaN, iz: Number.NaN },
     };
@@ -211,6 +216,7 @@ export class City {
     this.material.uniforms.uTime.value = seconds;
     this.hologramMaterial.uniforms.uTime.value = seconds;
     this.holoFrameMaterial.uniforms.uTime.value = seconds;
+    this.factoryParts.setTime(seconds);
     if (this.reflectionMaterial) this.reflectionMaterial.uniforms.uTime.value = seconds;
   }
 
@@ -225,6 +231,7 @@ export class City {
     this.material.dispose();
     this.hologramMaterial.dispose();
     this.holoFrameMaterial.dispose();
+    this.factoryParts.dispose();
     if (this.reflectionMaterial) this.reflectionMaterial.dispose();
     this.group.clear();
     this.assigned.clear();
@@ -255,6 +262,20 @@ export class City {
     }
 
     this.stats.spawned += spawned;
+
+    const factories = [];
+    for (const slot of this.assigned.values()) {
+      const layout = this.slotLayout[slot];
+      if (!layout || layout.type !== 'factory') continue;
+      let height = this.slotH[slot];
+      if (this.slotActive[slot] === 1) {
+        const progress = (now - this.slotSpawnAt[slot]) / GROW_MS;
+        height = this.slotH[slot] * easeOutCubic(Math.max(0, Math.min(1, progress)));
+      }
+      factories.push({ slot, layout, height });
+    }
+    this.factoryParts.sync(factories);
+
     return spawned;
   }
 
@@ -281,6 +302,7 @@ export class City {
 
     this.slotBuilding[slot] = 1;
     this.stats.buildings += 1;
+    if (layout.type === 'factory') this.stats.factories += 1;
     this.slotLayout[slot] = layout;
     this.slotHolo[slot] = mediaFacadeFor(layout, this.holoProbability);
     this.slotHolo2[slot] = this.slotHolo[slot]
@@ -303,6 +325,7 @@ export class City {
 
   _release(slot) {
     if (this.slotHolo[slot]) this.stats.holograms -= 1;
+    if (this.slotLayout[slot]?.type === 'factory') this.stats.factories -= 1;
     this.slotLayout[slot] = null;
     this.slotHolo[slot] = null;
     this.slotHolo2[slot] = null;
@@ -375,6 +398,12 @@ export class City {
     }
 
     this._writeHologram(slot, height);
+
+    const layout = this.slotLayout[slot];
+    if (layout && layout.type === 'factory') {
+      this.factoryParts.writeSlot(slot, layout, height);
+    }
+
     this._dirtyMatrix = true;
   }
 

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { escortPose } from './trafficModel.js';
+import { escortPose, escortSway } from './trafficModel.js';
 import { wrapAngle } from './streetNav.js';
 
 function part(geometry, color, options = {}) {
@@ -109,10 +109,10 @@ export class Escort {
     const target = escortPose(cameraPosition, heading, ahead, drop);
     const rightX = Math.cos(heading);
     const rightZ = -Math.sin(heading);
-    const sway = Math.sin(time * 0.8) * 0.45 + Math.sin(time * 1.9) * 0.12;
-    target.x += rightX * sway;
-    target.z += rightZ * sway;
-    target.y += Math.sin(time * 1.6) * 0.14;
+    const sway = escortSway(time);
+    target.x += rightX * sway.lateral;
+    target.z += rightZ * sway.lateral;
+    target.y += sway.vertical;
 
     if (!this.initialized) {
       this.position.set(target.x, target.y, target.z);
@@ -131,7 +131,7 @@ export class Escort {
     this.bank += (targetBank - this.bank) * (1 - Math.exp(-5 * dt));
 
     this.group.position.copy(this.position);
-    this.group.rotation.set(0, heading, this.bank, 'YXZ');
+    this.group.rotation.set(sway.pitch, heading, this.bank, 'YXZ');
     this.engine.material.opacity = 0.82 + 0.18 * Math.sin(time * 11);
   }
 

@@ -7,8 +7,11 @@ import {
   advanceVehicle,
   createFleet,
   escortPose,
+  escortSway,
   needsRespawn,
   spawnVehicle,
+  vehicleBob,
+  vehicleSway,
 } from '../src/trafficModel.js';
 
 const CAMERA = { x: avenueCenterX(0), y: 96, z: 0 };
@@ -123,4 +126,31 @@ test('escort flies ahead of the camera and below the view line', () => {
   const east = escortPose(CAMERA, Math.PI / 2);
   assert.ok(east.x > CAMERA.x);
   assert.ok(Math.abs(east.z - CAMERA.z) < 1e-9);
+});
+
+test('aerospiders sway a little more in the gravity flow', () => {
+  let bobPeak = 0;
+  let swayPeak = 0;
+  for (let i = 0; i < 1440; i += 1) {
+    const phase = (i / 1440) * Math.PI * 2;
+    bobPeak = Math.max(bobPeak, Math.abs(vehicleBob(phase)));
+    swayPeak = Math.max(swayPeak, Math.abs(vehicleSway(phase)));
+  }
+  assert.ok(bobPeak > 0.5 && bobPeak < 0.7, `bob peak ${bobPeak.toFixed(3)}`);
+  assert.ok(swayPeak > 0.15 && swayPeak < 0.3, `sway peak ${swayPeak.toFixed(3)}`);
+});
+
+test('escort sways a little more without leaving its line', () => {
+  let lateralPeak = 0;
+  let verticalPeak = 0;
+  let pitchPeak = 0;
+  for (let i = 0; i < 2000; i += 1) {
+    const sway = escortSway(i * 0.02);
+    lateralPeak = Math.max(lateralPeak, Math.abs(sway.lateral));
+    verticalPeak = Math.max(verticalPeak, Math.abs(sway.vertical));
+    pitchPeak = Math.max(pitchPeak, Math.abs(sway.pitch));
+  }
+  assert.ok(lateralPeak > 0.6 && lateralPeak < 0.8, `lateral ${lateralPeak.toFixed(3)}`);
+  assert.ok(verticalPeak > 0.15 && verticalPeak < 0.25, `vertical ${verticalPeak.toFixed(3)}`);
+  assert.ok(pitchPeak > 0.01 && pitchPeak < 0.04, `pitch ${pitchPeak.toFixed(3)}`);
 });

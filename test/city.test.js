@@ -46,7 +46,7 @@ test('first update fills the ring with buildings and skips avenues', () => {
   const result = city.update(0, atCell(10, 10));
   assert.ok(result.rebuilt > 0);
   assert.equal(city.stats.rebuilds, 1);
-  assert.ok(occupiedSlots(city).length > 20);
+  assert.ok(occupiedSlots(city).length > 10, `only ${occupiedSlots(city).length} buildings`);
   for (let slot = 0; slot < city.count; slot += 1) {
     const cell = city.slotCell(slot);
     assert.ok(cell !== null, `slot ${slot} is unassigned after full ring fill`);
@@ -95,7 +95,7 @@ test('building instances fill the footprint declared by the layout', () => {
     assert.ok(Math.abs(box.max.y - layout.h) < near);
     checked += 1;
   }
-  assert.ok(checked > 20, `checked ${checked} buildings`);
+  assert.ok(checked > 10, `checked ${checked} buildings`);
   city.dispose();
 });
 
@@ -175,9 +175,10 @@ test('reflection can be disabled', () => {
   const city = makeCity({ reflection: false });
   city.update(0, atCell(2, 2));
   assert.equal(city.reflection, null);
-  assert.equal(city.group.children.length, 3);
+  assert.equal(city.group.children.length, 4);
   assert.ok(city.group.children.includes(city.holograms));
   assert.ok(city.group.children.includes(city.holoFrames));
+  assert.ok(city.group.children.includes(city.factoryParts.group));
   city.dispose();
 });
 

@@ -8,6 +8,8 @@ import {
   laneForIndex,
   needsRespawn,
   spawnVehicle,
+  vehicleBob,
+  vehicleSway,
 } from './trafficModel.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -104,9 +106,12 @@ export class Traffic {
 
   _write(index, vehicle) {
     const spec = TRAFFIC_TYPES[vehicle.type];
-    const bob = Math.sin(vehicle.phase) * 0.35;
+    const bob = vehicleBob(vehicle.phase);
+    const sway = vehicleSway(vehicle.phase);
+    const swayX = Math.cos(vehicle.heading) * sway;
+    const swayZ = -Math.sin(vehicle.heading) * sway;
 
-    this._position.set(vehicle.x, vehicle.y + bob, vehicle.z);
+    this._position.set(vehicle.x + swayX, vehicle.y + bob, vehicle.z + swayZ);
     this._quaternion.setFromAxisAngle(UP, vehicle.heading);
     this._scale.set(spec.width, spec.height, spec.length);
     this._matrix.compose(this._position, this._quaternion, this._scale);
@@ -116,9 +121,11 @@ export class Traffic {
     this.kindAttribute.needsUpdate = true;
 
     const rearOffset = spec.length * 0.55;
-    this.glowPositions[index * 3] = vehicle.x - Math.sin(vehicle.heading) * rearOffset;
+    this.glowPositions[index * 3] =
+      vehicle.x + swayX - Math.sin(vehicle.heading) * rearOffset;
     this.glowPositions[index * 3 + 1] = vehicle.y + bob;
-    this.glowPositions[index * 3 + 2] = vehicle.z - Math.cos(vehicle.heading) * rearOffset;
+    this.glowPositions[index * 3 + 2] =
+      vehicle.z + swayZ - Math.cos(vehicle.heading) * rearOffset;
 
     this._color.setHex(vehicle.tint);
     this.glowColors[index * 3] = this._color.r * 1.5;

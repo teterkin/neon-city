@@ -210,6 +210,11 @@ async function start() {
   const toggle = document.getElementById('mode-toggle');
   const soundToggle = document.getElementById('sound-toggle');
   const turnFlash = document.getElementById('turn-flash');
+  const appVersion = document.getElementById('app-version');
+  if (appVersion) {
+    const version = typeof __APP_VERSION__ === 'undefined' ? 'dev' : __APP_VERSION__;
+    appVersion.textContent = `v${version}`;
+  }
 
   function syncModeUi() {
     const isSky = rig.mode === 'sky';

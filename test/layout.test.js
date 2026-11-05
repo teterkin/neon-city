@@ -88,6 +88,55 @@ test('neighbouring cells are not identical', () => {
   assert.notEqual(a.w, b.w);
 });
 
+test('rare factories are low, wide and deterministic', () => {
+  let buildings = 0;
+  let factories = 0;
+  for (let ix = 1; ix <= 200; ix += 1) {
+    for (let iz = 1; iz <= 200; iz += 1) {
+      const layout = cellLayout(ix, iz);
+      if (!layout) continue;
+      buildings += 1;
+      assert.ok(
+        layout.type === 'tower' || layout.type === 'factory',
+        `unknown type ${layout.type}`,
+      );
+      if (layout.type !== 'factory') continue;
+      factories += 1;
+      assert.ok(layout.h >= MIN_HEIGHT, `factory height ${layout.h} below minimum`);
+      assert.ok(layout.h <= MIN_HEIGHT + 8, `factory height ${layout.h} too tall`);
+      assert.ok(layout.w >= CELL * 0.75 && layout.w <= CELL * 0.85, `factory w ${layout.w}`);
+      assert.ok(layout.d >= CELL * 0.75 && layout.d <= CELL * 0.85, `factory d ${layout.d}`);
+    }
+  }
+
+  const share = factories / buildings;
+  assert.ok(share > 0.045 && share < 0.075, `factory share ${(share * 100).toFixed(1)}%`);
+  assert.ok(factories > 800, `only ${factories} factories`);
+  assert.ok(buildings > 19000, `only ${buildings} buildings left`);
+});
+
+test('factories keep a one-building clearing ring', () => {
+  let factories = 0;
+  for (let ix = 1; ix <= 200; ix += 1) {
+    for (let iz = 1; iz <= 200; iz += 1) {
+      const layout = cellLayout(ix, iz);
+      if (!layout || layout.type !== 'factory') continue;
+      factories += 1;
+      for (let dx = -1; dx <= 1; dx += 1) {
+        for (let dz = -1; dz <= 1; dz += 1) {
+          if (dx === 0 && dz === 0) continue;
+          assert.equal(
+            cellLayout(ix + dx, iz + dz),
+            null,
+            `neighbour ${ix + dx}:${iz + dz} of factory ${ix}:${iz} is built up`,
+          );
+        }
+      }
+    }
+  }
+  assert.ok(factories > 800, `only ${factories} factories`);
+});
+
 test('cellOf maps world coordinates to cell indices', () => {
   assert.deepEqual(cellOf(0, 0), { ix: 0, iz: 0 });
   assert.deepEqual(cellOf(13.99, 0.01), { ix: 0, iz: 0 });

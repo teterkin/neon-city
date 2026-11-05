@@ -31,6 +31,21 @@ test('facades face the nearest avenue', () => {
   assert.equal(nearestAvenueFace(cellLayout(3, 6)), 'z+');
 });
 
+test('factories do not carry media facades', () => {
+  let checked = 0;
+  for (let ix = 1; ix <= 200; ix += 1) {
+    for (let iz = 1; iz <= 200; iz += 1) {
+      const cell = cellLayout(ix, iz);
+      if (!cell || cell.type !== 'factory') continue;
+      checked += 1;
+      assert.equal(mediaFacadeFor(cell, 1), null);
+      assert.equal(mediaFacadeFor(cell, 1, 'wall'), null);
+      assert.equal(secondaryMediaFacadeFor(cell, null), null);
+    }
+  }
+  assert.ok(checked > 800, `only ${checked} factories`);
+});
+
 test('default ad density covers roughly a quarter of buildings', () => {
   let buildings = 0;
   let short = 0;
@@ -40,7 +55,7 @@ test('default ad density covers roughly a quarter of buildings', () => {
   for (let ix = 1; ix <= 200; ix += 1) {
     for (let iz = 1; iz <= 200; iz += 1) {
       const cell = cellLayout(ix, iz);
-      if (!cell) continue;
+      if (!cell || cell.type === 'factory') continue;
       buildings += 1;
       const spec = mediaFacadeFor(cell, null);
       if (cell.h >= 60) {
@@ -59,7 +74,7 @@ test('default ad density covers roughly a quarter of buildings', () => {
   assert.ok(overall > 0.25 && overall < 0.29, `overall ${(overall * 100).toFixed(1)}%`);
   assert.ok(shortShare > 0.19 && shortShare < 0.21, `short ${(shortShare * 100).toFixed(1)}%`);
   assert.ok(tallShare > 0.38 && tallShare < 0.42, `tall ${(tallShare * 100).toFixed(1)}%`);
-  assert.ok(buildings > 20000);
+  assert.ok(buildings > 17000, `only ${buildings} towers`);
 });
 
 test('facade spec stays inside the chosen wall', () => {
@@ -85,6 +100,7 @@ test('corner facades are preferred and project from the corner', () => {
       const cell = cellLayout(ix, iz);
       if (!cell) continue;
       const spec = mediaFacadeFor(cell, 1);
+      if (!spec) continue;
       if (spec.placement === 'corner') {
         corners += 1;
         assert.ok(spec.projection >= 0.7 && spec.projection <= 1.4);
@@ -170,6 +186,7 @@ test('wall screens and frames stay inside the building silhouette', () => {
       const cell = cellLayout(ix, iz);
       if (!cell) continue;
       const spec = mediaFacadeFor(cell, 1, 'wall');
+      if (!spec) continue;
       const pose = holoPose(cell, spec, cell.h);
       const frameWidth = pose.width + 0.16;
       const frameHeight = pose.height + 0.16;
@@ -201,6 +218,7 @@ test('facade ads sit in the upper part of the building', () => {
       const cell = cellLayout(ix, iz);
       if (!cell) continue;
       const spec = mediaFacadeFor(cell, 1, 'wall');
+      if (!spec) continue;
       const top = spec.centerFrac + spec.heightFrac / 2;
       const bottom = spec.centerFrac - spec.heightFrac / 2;
       assert.ok(top >= 0.84 && top <= 0.91, `top ${top}`);
@@ -290,7 +308,7 @@ test('secondary facades add a rare wall panel on a perpendicular side', () => {
 
   const share = secondary / buildings;
   assert.ok(share > 0.08 && share < 0.12, `share ${(share * 100).toFixed(1)}%`);
-  assert.ok(buildings > 7000);
+  assert.ok(buildings > 4500, `only ${buildings} buildings`);
 });
 
 test('secondary facades need a primary facade', () => {

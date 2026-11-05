@@ -96,6 +96,22 @@ export function advanceVehicle(vehicle, dt) {
   return vehicle;
 }
 
+export function vehicleBob(phase) {
+  return Math.sin(phase) * 0.45 + Math.sin(phase * 0.43 + 1.7) * 0.09;
+}
+
+export function vehicleSway(phase) {
+  return Math.sin(phase * 0.63 + 0.8) * 0.22;
+}
+
+export function escortSway(time) {
+  return {
+    lateral: Math.sin(time * 0.8) * 0.58 + Math.sin(time * 1.9) * 0.16,
+    vertical: Math.sin(time * 1.6) * 0.19,
+    pitch: Math.sin(time * 1.3 + 0.6) * 0.025,
+  };
+}
+
 export function needsRespawn(vehicle, camera, radius = 320) {
   return Math.hypot(vehicle.x - camera.x, vehicle.z - camera.z) > radius;
 }
