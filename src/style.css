@@ -256,6 +256,10 @@ body.ready #mode-toggle {
   #hint {
     font-size: 9px;
     letter-spacing: 0.1em;
+    max-width: 88vw;
+    line-height: 1.6;
+    text-align: center;
+    white-space: normal;
   }
 
   #mode-toggle {
