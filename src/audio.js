@@ -25,6 +25,9 @@ export class Soundtrack {
     this.buffer = null;
     this.source = null;
     this.liveSources = new Set();
+    this.scheduleTimer = null;
+    this.nextLoopStart = 0;
+    this.leadIn = 0.05;
     this.duration = 0;
     this.available = false;
     this.playing = false;
@@ -53,6 +56,7 @@ export class Soundtrack {
         const bytes = await response.arrayBuffer();
         this.buffer = await this.context.decodeAudioData(bytes);
         this.duration = this.buffer.duration;
+        this._smoothBufferSeam();
         this.available = true;
       } catch (error) {
         this.error = error;
@@ -72,13 +76,17 @@ export class Soundtrack {
     } catch {}
 
     this._stopLiveSources();
+    this._stopScheduler();
 
     const now = this.context.currentTime;
-    const source = this.context.createBufferSource();
-    source.buffer = this.buffer;
-    source.loop = true;
-    source.connect(this.gain);
-    source.onended = () => this.liveSources.delete(source);
+    const startAt = now + this.leadIn;
+    this.nextLoopStart = startAt;
+    this._scheduleLoop(this.nextLoopStart);
+    this.nextLoopStart += this.buffer.duration;
+    this._scheduleLoop(this.nextLoopStart);
+    this.nextLoopStart += this.buffer.duration;
+    this.scheduleTimer = setInterval(() => this._scheduleAhead(), 5000);
+    this.scheduleTimer?.unref?.();
 
     const gain = this.gain.gain;
     if (typeof gain.cancelAndHoldAtTime === 'function') {
@@ -88,17 +96,15 @@ export class Soundtrack {
       gain.setValueAtTime(gain.value, now);
     }
     gain.setValueAtTime(0, now);
-    gain.linearRampToValueAtTime(this.volume, now + this.fadeIn);
-    source.start(now);
+    gain.linearRampToValueAtTime(this.volume, startAt + this.fadeIn);
 
-    this.liveSources.add(source);
-    this.source = source;
     this.playing = true;
     this.onChange?.(true);
     return true;
   }
 
   stop() {
+    this._stopScheduler();
     if (!this.context || this.liveSources.size === 0) {
       this.playing = false;
       return;
@@ -128,6 +134,50 @@ export class Soundtrack {
         this.liveSources.delete(source);
       }
     }, this.fadeOut * 1000 + 50);
+  }
+
+  _scheduleLoop(when) {
+    const source = this.context.createBufferSource();
+    source.buffer = this.buffer;
+    source.connect(this.gain);
+    source.onended = () => this.liveSources.delete(source);
+    source.start(when);
+    this.liveSources.add(source);
+    if (!this.source) this.source = source;
+  }
+
+  _scheduleAhead() {
+    if (!this.playing || !this.context || !this.buffer) return;
+    const horizon = this.context.currentTime + this.buffer.duration * 1.5;
+    while (this.nextLoopStart < horizon) {
+      this._scheduleLoop(this.nextLoopStart);
+      this.nextLoopStart += this.buffer.duration;
+    }
+  }
+
+  _stopScheduler() {
+    if (this.scheduleTimer === null) return;
+    clearInterval(this.scheduleTimer);
+    this.scheduleTimer = null;
+  }
+
+  _smoothBufferSeam() {
+    const buffer = this.buffer;
+    if (!buffer || typeof buffer.getChannelData !== 'function') return;
+    const fade = Math.min(
+      Math.round(0.005 * buffer.sampleRate),
+      Math.floor(buffer.length / 10),
+    );
+    if (fade < 2) return;
+    for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+      const data = buffer.getChannelData(channel);
+      const first = data[0];
+      for (let k = 0; k < fade; k += 1) {
+        const index = data.length - 1 - k;
+        const weight = 0.5 * (1 + Math.cos((Math.PI * k) / fade));
+        data[index] = data[index] * (1 - weight) + first * weight;
+      }
+    }
   }
 
   _stopLiveSources() {

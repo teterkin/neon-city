@@ -88,33 +88,40 @@ test('play is a no-op before prepare', () => {
   assert.equal(soundtrack.playing, false);
 });
 
-test('play resumes the context, loops the buffer and fades in', async () => {
+test('play schedules gapless one-shot buffers instead of relying on loop', async () => {
   const { soundtrack, context } = makeSoundtrack();
   await soundtrack.prepare();
   assert.equal(soundtrack.play(), true);
   assert.equal(soundtrack.playing, true);
-  assert.equal(context.state, 'running');
 
-  const source = context.sources[0];
-  assert.equal(source.loop, true);
-  assert.equal(source.buffer.duration, 35.556);
-  assert.equal(source.started, 10);
+  const first = context.sources[0];
+  const second = context.sources[1];
+  assert.equal(first.loop, false, 'looping a long decoded buffer is avoided');
+  assert.equal(first.buffer.duration, 35.556);
+  assert.ok(Math.abs(first.started - 10.05) < 1e-9, `lead-in ${first.started}`);
+  assert.ok(second, 'next loop should be queued ahead');
+  assert.ok(
+    Math.abs(second.started - (first.started + 35.556)) < 1e-6,
+    `second loop starts at ${second.started}`,
+  );
   assert.ok(
     context.events.some(([type, value]) => type === 'ramp' && value === 0.55),
     'gain should fade in to the configured volume',
   );
+  soundtrack.stop();
 });
 
-test('stop fades out and stops the source after the fade', async () => {
+test('stop fades out and stops every scheduled buffer', async () => {
   const { soundtrack, context } = makeSoundtrack();
   await soundtrack.prepare();
   soundtrack.play();
-  const source = context.sources[0];
+  const sources = [...context.sources];
   soundtrack.stop();
   assert.equal(soundtrack.playing, false);
   assert.ok(context.events.some(([type, value]) => type === 'ramp' && value === 0));
   await new Promise((resolve) => setTimeout(resolve, 120));
-  assert.equal(source.stopped, true);
+  for (const source of sources) assert.equal(source.stopped, true);
+  assert.equal(soundtrack.scheduleTimer, null);
 });
 
 test('starting a new loop stops any lingering source immediately', async () => {
@@ -122,14 +129,18 @@ test('starting a new loop stops any lingering source immediately', async () => {
   await soundtrack.prepare();
   soundtrack.play();
   const first = context.sources[0];
+  const beforeCount = context.sources.length;
 
   soundtrack.stop();
   soundtrack.play();
+  const fresh = context.sources.slice(beforeCount);
 
   assert.equal(first.stopped, true, 'old source must not overlap the new loop');
+  assert.ok(fresh.length >= 1);
   await new Promise((resolve) => setTimeout(resolve, 120));
   assert.equal(soundtrack.playing, true);
-  assert.equal(context.sources[1].stopped, false, 'new source must stay alive');
+  for (const source of fresh) assert.equal(source.stopped, false, 'new source must stay alive');
+  soundtrack.stop();
 });
 
 test('toggle switches between playing and stopped', async () => {
