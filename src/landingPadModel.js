@@ -41,7 +41,8 @@ function makePad(layout, cell, index) {
   const x = (cell.ix + 0.5) * CELL;
   const z = (cell.iz + 0.5) * CELL;
 
-  const shipCount = 1 + (hash2(layout.ix, layout.iz, 653 + index) < 0.55 ? 1 : 0);
+  const occupancy = hash2(layout.ix, layout.iz, 653 + index);
+  const shipCount = occupancy < 0.3 ? 0 : occupancy < 0.7 ? 1 : 2;
   const ships = [];
   for (let shipIndex = 0; shipIndex < shipCount; shipIndex += 1) {
     const type =

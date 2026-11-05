@@ -18,6 +18,9 @@ test('every factory gets two landing pads next to it', () => {
   let pads = 0;
   let ships = 0;
   let cargo = 0;
+  let emptyPads = 0;
+  let singlePads = 0;
+  let doublePads = 0;
 
   for (const layout of factories) {
     const list = landingPadsFor(layout);
@@ -48,7 +51,10 @@ test('every factory gets two landing pads next to it', () => {
         && pad.z + pad.depth / 2 > layout.z;
       assert.equal(overlapsFactory, false, 'pad overlaps the factory');
 
-      assert.ok(pad.ships.length >= 1 && pad.ships.length <= 2);
+      assert.ok(pad.ships.length >= 0 && pad.ships.length <= 2);
+      if (pad.ships.length === 0) emptyPads += 1;
+      else if (pad.ships.length === 1) singlePads += 1;
+      else doublePads += 1;
       for (const ship of pad.ships) {
         ships += 1;
         if (ship.type === 'cargo') cargo += 1;
@@ -67,7 +73,14 @@ test('every factory gets two landing pads next to it', () => {
 
   const cargoShare = cargo / ships;
   assert.ok(cargoShare > 0.7 && cargoShare < 0.9, `cargo share ${(cargoShare * 100).toFixed(1)}%`);
-  assert.ok(ships > pads, 'pads have no parked ships');
+  assert.ok(ships > 0, 'no ships parked anywhere');
+
+  const emptyShare = emptyPads / pads;
+  const singleShare = singlePads / pads;
+  const doubleShare = doublePads / pads;
+  assert.ok(emptyShare > 0.26 && emptyShare < 0.34, `empty ${(emptyShare * 100).toFixed(1)}%`);
+  assert.ok(singleShare > 0.36 && singleShare < 0.44, `single ${(singleShare * 100).toFixed(1)}%`);
+  assert.ok(doubleShare > 0.26 && doubleShare < 0.34, `double ${(doubleShare * 100).toFixed(1)}%`);
 });
 
 test('landing pads only exist on factories', () => {

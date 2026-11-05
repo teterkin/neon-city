@@ -27,13 +27,15 @@ test('sky docks only appear on skyscrapers', () => {
   let docks = 0;
   let roofs = 0;
   let walls = 0;
+  let emptyDocks = 0;
 
   for (const layout of towers) {
     const spec = skyDockFor(layout);
     assert.deepEqual(skyDockFor(layout), spec);
     if (!spec) continue;
     docks += 1;
-    assert.ok(spec.ships >= 2 && spec.ships <= 4, `ships ${spec.ships}`);
+    if (spec.ships === 0) emptyDocks += 1;
+    assert.ok(spec.ships >= 0 && spec.ships <= 4, `ships ${spec.ships}`);
     assert.ok(spec.radius >= 3.5 && spec.radius <= 8, `radius ${spec.radius}`);
     assert.ok(spec.thickness >= 0.5 && spec.thickness <= 0.8);
     if (spec.kind === 'roof') {
@@ -48,6 +50,8 @@ test('sky docks only appear on skyscrapers', () => {
   }
 
   assert.ok(roofs > 0 && walls > 0);
+  const emptyShare = emptyDocks / docks;
+  assert.ok(emptyShare > 0.1 && emptyShare < 0.2, `empty docks ${(emptyShare * 100).toFixed(1)}%`);
   assert.ok(shortTowers.length > 0);
   assert.equal(skyDockFor(shortTowers[0]), null);
   assert.equal(skyDockFor(factories[0]), null);

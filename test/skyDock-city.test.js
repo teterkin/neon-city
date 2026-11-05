@@ -44,11 +44,13 @@ test('sky docks appear on skyscrapers with parked ships', () => {
     assert.ok(Math.abs(matrix.elements[5] - spec.thickness) < 0.01, 'deck thickness');
     assert.ok(Math.abs(matrix.elements[0] - spec.radius) < 0.05, 'deck radius');
 
-    const ship = skyDockShipPose(layout, spec, layout.h, 0);
-    city.skyDocks.ships.getMatrixAt(base.ships[0].index, matrix);
-    assert.ok(Math.abs(matrix.elements[12] - ship.x) < 0.05, 'ship x');
-    assert.ok(Math.abs(matrix.elements[14] - ship.z) < 0.05, 'ship z');
-    assert.ok(Math.abs(matrix.elements[13] - (ship.y + 0.35)) < 0.05, 'ship is not on the deck');
+    if (spec.ships > 0) {
+      const ship = skyDockShipPose(layout, spec, layout.h, 0);
+      city.skyDocks.ships.getMatrixAt(base.ships[0].index, matrix);
+      assert.ok(Math.abs(matrix.elements[12] - ship.x) < 0.05, 'ship x');
+      assert.ok(Math.abs(matrix.elements[14] - ship.z) < 0.05, 'ship z');
+      assert.ok(Math.abs(matrix.elements[13] - (ship.y + 0.35)) < 0.05, 'ship is not on the deck');
+    }
   }
 
   assert.equal(city.skyDocks.docks.count, city.stats.docks);

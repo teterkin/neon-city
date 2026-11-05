@@ -36,7 +36,10 @@ export function skyDockFor(layout) {
     thickness: 0.5 + hash2(layout.ix, layout.iz, 617) * 0.3,
     face: kind === 'wall' ? nearestAvenueFace(layout) : null,
     heightFrac: kind === 'wall' ? 0.5 + hash2(layout.ix, layout.iz, 619) * 0.2 : 1,
-    ships: 2 + Math.floor(hash2(layout.ix, layout.iz, 623) * 3),
+    ships:
+      hash2(layout.ix, layout.iz, 623) >= 0.15
+        ? 2 + Math.floor(hash2(layout.ix, layout.iz, 633) * 3)
+        : 0,
     shipOffset: hash2(layout.ix, layout.iz, 629) * Math.PI * 2,
     tintIndex: layout.colorIndex,
   };
@@ -60,7 +63,8 @@ export function skyDockPose(layout, spec, height) {
 
 export function skyDockShipPose(layout, spec, height, index) {
   const dock = skyDockPose(layout, spec, height);
-  const angle = spec.shipOffset + (index / spec.ships) * Math.PI * 2;
+  const count = Math.max(1, spec.ships);
+  const angle = spec.shipOffset + (index / count) * Math.PI * 2;
   const distance = spec.radius * 0.48;
 
   return {
