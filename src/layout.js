@@ -1,5 +1,6 @@
 import {
   AVENUE_EVERY,
+  ARCH_ASPECT,
   CELL,
   MAX_HEIGHT,
   MIN_HEIGHT,
@@ -56,19 +57,40 @@ export function cellLayout(ix, iz) {
   const towers = Math.pow(density, 2.8);
   const jitter = hash2(ix, iz, 17);
   const type = factory ? 'factory' : 'tower';
-  const height =
+  let height =
     type === 'factory'
       ? MIN_HEIGHT + hash2(ix, iz, 311) * 7
       : MIN_HEIGHT + (MAX_HEIGHT - MIN_HEIGHT) * (towers * 0.9 + jitter * 0.1);
 
-  const widthFrac = type === 'factory'
-    ? 0.76 + hash2(ix, iz, 31) * 0.08
-    : 0.46 + hash2(ix, iz, 31) * 0.24;
-  const depthFrac = type === 'factory'
-    ? 0.76 + hash2(ix, iz, 73) * 0.08
-    : 0.46 + hash2(ix, iz, 73) * 0.24;
+  let shape = 'box';
+  let archHole = null;
+  if (type === 'tower' && height >= 45) {
+    const roll = hash2(ix, iz, 701);
+    if (roll < 0.09) shape = 'pyramid';
+    else if (roll < 0.16) shape = 'cone';
+    else if (roll < 0.26) shape = 'cylinder';
+    else if (roll < 0.32) shape = 'arch';
+    if (shape === 'arch') {
+      const holeRoll = hash2(ix, iz, 703);
+      archHole = holeRoll < 0.35 ? 'circle' : holeRoll < 0.7 ? 'ellipse' : 'stadium';
+    }
+  }
+
+  const widthFrac =
+    type === 'factory'
+      ? 0.76 + hash2(ix, iz, 31) * 0.08
+      : shape === 'box'
+        ? 0.46 + hash2(ix, iz, 31) * 0.24
+        : 0.72 + hash2(ix, iz, 31) * 0.12;
+  const depthFrac =
+    type === 'factory'
+      ? 0.76 + hash2(ix, iz, 73) * 0.08
+      : shape === 'box'
+        ? 0.46 + hash2(ix, iz, 73) * 0.24
+        : 0.72 + hash2(ix, iz, 73) * 0.12;
   const width = CELL * widthFrac;
   const depth = CELL * depthFrac;
+  if (shape === 'arch' && archHole === 'circle') height = width * ARCH_ASPECT;
 
   const colorIndex = Math.floor(hash2(ix, iz, 131) * PALETTE.length) % PALETTE.length;
   const glow = PALETTE[colorIndex].glow * (0.75 + hash2(ix, iz, 197) * 0.55);
@@ -77,6 +99,8 @@ export function cellLayout(ix, iz) {
     ix,
     iz,
     type,
+    shape,
+    archHole,
     x: ix * CELL + (CELL - width) / 2,
     z: iz * CELL + (CELL - depth) / 2,
     w: width,

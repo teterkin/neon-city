@@ -29,17 +29,20 @@ export const PUDDLE_GLSL = /* glsl */ `
 const BUILDING_VERTEX = /* glsl */ `
   attribute float aSeed;
   attribute float aGlow;
+  attribute float aShape;
 
   varying vec3 vWorld;
   varying vec3 vLocal;
   varying vec3 vTint;
   varying float vSeed;
   varying float vGlow;
+  varying float vShape;
 
   void main() {
     vTint = instanceColor;
     vSeed = aSeed;
     vGlow = aGlow;
+    vShape = aShape;
     vLocal = position;
 
     vec4 world = modelMatrix * instanceMatrix * vec4(position, 1.0);
@@ -59,12 +62,32 @@ const BUILDING_FRAGMENT = /* glsl */ `
   varying vec3 vTint;
   varying float vSeed;
   varying float vGlow;
+  varying float vShape;
 
   ${PUDDLE_GLSL}
 
   void main() {
     vec3 n = normalize(cross(dFdx(vWorld), dFdy(vWorld)));
     float roof = smoothstep(0.55, 0.9, abs(n.y));
+
+    float holeDistance = 10.0;
+    if (vShape > 3.5) {
+      if (vShape > 5.5) {
+        vec2 q = vec2(abs(vLocal.x) - 0.24, vLocal.y - 0.52);
+        holeDistance = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - 0.13;
+      } else if (vShape > 4.5) {
+        holeDistance = length(vLocal.xy - vec2(0.0, 0.55)) - 0.3;
+      } else {
+        vec2 q = vec2(vLocal.x / 0.4, (vLocal.y - 0.55) / 0.072727);
+        holeDistance = (length(q) - 1.0) * 0.072727;
+      }
+    }
+    float innerWall = 0.0;
+    if (vShape > 3.5) {
+      float nearHole = 1.0 - smoothstep(0.004, 0.025, abs(holeDistance));
+      float notFace = 1.0 - smoothstep(0.47, 0.49, abs(vLocal.z));
+      innerWall = nearHole * notFace;
+    }
 
     float facadeU = abs(n.x) > abs(n.z) ? vWorld.z : vWorld.x;
     float floorH = 2.5;
@@ -83,16 +106,30 @@ const BUILDING_FRAGMENT = /* glsl */ `
     float verticalStyle = step(0.82, fract(vSeed * 13.7));
     float windows = mix(lit * band * column, lit * 0.7, verticalStyle * 0.55);
     windows *= 1.0 - roof;
+    windows *= 1.0 - innerWall;
 
     float flicker = 0.9 + 0.1 * sin(uTime * 1.7 + vSeed * 63.0);
     vec3 tint = vTint;
     vec3 emissive = tint * windows * (0.55 + vGlow * 0.9) * flicker;
 
     float edgeCorner = abs(n.x) > abs(n.z) ? abs(vLocal.z) : abs(vLocal.x);
-    float cornerStrip = smoothstep(0.44, 0.5, edgeCorner) * (1.0 - roof);
+    float cornerStrip =
+      smoothstep(0.44, 0.5, edgeCorner) * (1.0 - roof) * (1.0 - step(0.5, vShape));
     float streetFade = exp(-vWorld.y * 0.05);
     emissive += tint * cornerStrip * (0.1 + 0.5 * streetFade);
     emissive += tint * roof * 0.025;
+
+    float topRim =
+      smoothstep(0.96, 1.0, vLocal.y) * (1.0 - roof) * step(0.5, vShape);
+    float rimPulse = 0.5 + 0.5 * sin(uTime * 2.2 + vSeed * 40.0);
+    emissive += tint * topRim * (0.4 + 0.6 * rimPulse) * 1.4;
+
+    float archGlow = 0.0;
+    if (vShape > 3.5) {
+      float face = smoothstep(0.48, 0.5, abs(vLocal.z));
+      archGlow = (1.0 - smoothstep(0.002, 0.012, abs(holeDistance))) * face;
+    }
+    emissive += tint * archGlow * 1.6;
 
     float viewDistance = distance(vWorld, cameraPosition);
     float detail = 1.0 - smoothstep(140.0, 480.0, viewDistance);

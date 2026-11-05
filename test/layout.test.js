@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   AVENUE_EVERY,
+  ARCH_ASPECT,
   CELL,
   MAX_HEIGHT,
   MIN_HEIGHT,
@@ -135,6 +136,65 @@ test('factories keep a one-building clearing ring', () => {
     }
   }
   assert.ok(factories > 800, `only ${factories} factories`);
+});
+
+test('tall towers get four new silhouettes and wide bases', () => {
+  const counts = { box: 0, pyramid: 0, cone: 0, cylinder: 0, arch: 0 };
+  const holes = { circle: 0, ellipse: 0, stadium: 0 };
+  let tall = 0;
+  for (let ix = 1; ix <= 200; ix += 1) {
+    for (let iz = 1; iz <= 200; iz += 1) {
+      const layout = cellLayout(ix, iz);
+      if (!layout) continue;
+      assert.ok(
+        ['box', 'pyramid', 'cone', 'cylinder', 'arch'].includes(layout.shape),
+        `unknown shape ${layout.shape}`,
+      );
+      if (layout.type === 'factory' || layout.h < 45) {
+        assert.equal(layout.shape, 'box', 'low buildings and factories must stay boxes');
+        assert.equal(layout.archHole, null);
+        continue;
+      }
+      tall += 1;
+      counts[layout.shape] += 1;
+      if (layout.shape === 'arch') {
+        assert.ok(
+          ['circle', 'ellipse', 'stadium'].includes(layout.archHole),
+          `hole ${layout.archHole}`,
+        );
+        holes[layout.archHole] += 1;
+        if (layout.archHole === 'circle') {
+          assert.ok(
+            Math.abs(layout.h - layout.w * ARCH_ASPECT) < 1e-9,
+            `arch height ${layout.h} does not match its width`,
+          );
+        }
+      } else {
+        assert.equal(layout.archHole, null);
+      }
+      if (layout.shape !== 'box') {
+        assert.ok(layout.w >= CELL * 0.72, `narrow ${layout.shape} ${layout.w}`);
+        assert.ok(layout.w <= CELL * 0.85);
+        assert.ok(layout.d >= CELL * 0.72);
+        assert.ok(layout.d <= CELL * 0.85);
+      }
+    }
+  }
+
+  assert.ok(tall > 2000, `only ${tall} tall towers`);
+  const shares = {
+    box: counts.box / tall,
+    pyramid: counts.pyramid / tall,
+    cone: counts.cone / tall,
+    cylinder: counts.cylinder / tall,
+    arch: counts.arch / tall,
+  };
+  assert.ok(shares.box > 0.66 && shares.box < 0.7, `box ${(shares.box * 100).toFixed(1)}%`);
+  assert.ok(shares.pyramid > 0.07 && shares.pyramid < 0.11, `pyramid ${(shares.pyramid * 100).toFixed(1)}%`);
+  assert.ok(shares.cone > 0.05 && shares.cone < 0.09, `cone ${(shares.cone * 100).toFixed(1)}%`);
+  assert.ok(shares.cylinder > 0.08 && shares.cylinder < 0.12, `cylinder ${(shares.cylinder * 100).toFixed(1)}%`);
+  assert.ok(shares.arch > 0.04 && shares.arch < 0.08, `arch ${(shares.arch * 100).toFixed(1)}%`);
+  assert.ok(holes.circle > 0 && holes.ellipse > 0 && holes.stadium > 0, 'an arch variant is missing');
 });
 
 test('cellOf maps world coordinates to cell indices', () => {

@@ -12,7 +12,9 @@ const atCell = (ix, iz) => ({ x: pad(ix), z: pad(iz) });
 function firstBuildingSlot(city) {
   for (let slot = 0; slot < city.count; slot += 1) {
     const cell = city.slotCell(slot);
-    if (cell && cellLayout(cell.ix, cell.iz)) return slot;
+    if (!cell) continue;
+    const layout = cellLayout(cell.ix, cell.iz);
+    if (layout && layout.type === 'tower' && layout.shape === 'box') return slot;
   }
   return -1;
 }

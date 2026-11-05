@@ -8,7 +8,12 @@ const DOCK_SPACING = 2;
 const DOCK_RANK = 631;
 
 function isDockTower(layout) {
-  return Boolean(layout) && layout.type === 'tower' && layout.h >= DOCK_MIN_HEIGHT;
+  return (
+    Boolean(layout)
+    && layout.type === 'tower'
+    && layout.h >= DOCK_MIN_HEIGHT
+    && (layout.shape === 'box' || layout.shape === 'cylinder')
+  );
 }
 
 export function skyDockFor(layout) {
@@ -24,7 +29,12 @@ export function skyDockFor(layout) {
     }
   }
 
-  const kind = hash2(layout.ix, layout.iz, 607) < 0.5 ? 'roof' : 'wall';
+  const kind =
+    layout.shape === 'cylinder'
+      ? 'roof'
+      : hash2(layout.ix, layout.iz, 607) < 0.5
+        ? 'roof'
+        : 'wall';
   const radius =
     kind === 'roof'
       ? Math.max(layout.w, layout.d) / 2 + 1.4 + hash2(layout.ix, layout.iz, 611) * 1.1

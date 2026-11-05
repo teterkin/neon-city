@@ -36,7 +36,7 @@ test('sky docks only appear on skyscrapers', () => {
     docks += 1;
     if (spec.ships === 0) emptyDocks += 1;
     assert.ok(spec.ships >= 0 && spec.ships <= 4, `ships ${spec.ships}`);
-    assert.ok(spec.radius >= 3.5 && spec.radius <= 8, `radius ${spec.radius}`);
+    assert.ok(spec.radius >= 3.5 && spec.radius <= 8.5, `radius ${spec.radius}`);
     assert.ok(spec.thickness >= 0.5 && spec.thickness <= 0.8);
     if (spec.kind === 'roof') {
       roofs += 1;

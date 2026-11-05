@@ -10,6 +10,7 @@ import { cellLayout, cellOf, ringCells } from './layout.js';
 import { FactoryParts } from './factoryParts.js';
 import { SkyDocks } from './skyDocks.js';
 import { LandingPads } from './landingPads.js';
+import { BuildingShapes } from './buildingShapes.js';
 import { skyDockFor } from './skyDockModel.js';
 import { landingPadsFor } from './landingPadModel.js';
 import { createBuildingMaterial } from './materials/buildingMaterial.js';
@@ -41,6 +42,11 @@ export class City {
 
     this.geometry = new THREE.BoxGeometry(1, 1, 1);
     this.geometry.translate(0, 0.5, 0);
+    this.shapeAttribute = new THREE.InstancedBufferAttribute(
+      new Float32Array(this.count),
+      1,
+    );
+    this.geometry.setAttribute('aShape', this.shapeAttribute);
 
     this.seedAttribute = new THREE.InstancedBufferAttribute(new Float32Array(this.count), 1);
     this.glowAttribute = new THREE.InstancedBufferAttribute(new Float32Array(this.count), 1);
@@ -124,6 +130,9 @@ export class City {
 
     this.factoryParts = new FactoryParts(this.count);
     this.group.add(this.factoryParts.group);
+
+    this.shapes = new BuildingShapes(this.count, this.material, this.reflectionMaterial);
+    this.group.add(this.shapes.group);
 
     this.skyDocks = new SkyDocks(this.count);
     this.group.add(this.skyDocks.group);
@@ -233,6 +242,7 @@ export class City {
     this.factoryParts.setTime(seconds);
     this.skyDocks.setTime(seconds);
     this.landingPads.setTime(seconds);
+    this.shapes.setTime(seconds);
     if (this.reflectionMaterial) this.reflectionMaterial.uniforms.uTime.value = seconds;
   }
 
@@ -250,6 +260,7 @@ export class City {
     this.factoryParts.dispose();
     this.skyDocks.dispose();
     this.landingPads.dispose();
+    this.shapes.dispose();
     if (this.reflectionMaterial) this.reflectionMaterial.dispose();
     this.group.clear();
     this.assigned.clear();
@@ -284,6 +295,7 @@ export class City {
     const factories = [];
     const docks = [];
     const pads = [];
+    const shapes = [];
     for (const slot of this.assigned.values()) {
       const layout = this.slotLayout[slot];
       if (!layout) continue;
@@ -297,13 +309,17 @@ export class City {
         if (this.slotPads[slot]) {
           pads.push({ slot, layout, pads: this.slotPads[slot] });
         }
-      } else if (this.slotDock[slot]) {
-        docks.push({ slot, layout, height, dock: this.slotDock[slot] });
+      } else {
+        if (layout.shape !== 'box') shapes.push({ slot, layout, height });
+        if (this.slotDock[slot]) {
+          docks.push({ slot, layout, height, dock: this.slotDock[slot] });
+        }
       }
     }
     this.factoryParts.sync(factories);
     this.skyDocks.sync(docks);
     this.landingPads.sync(pads);
+    this.shapes.sync(shapes);
 
     return spawned;
   }
@@ -421,26 +437,35 @@ export class City {
   }
 
   _writeMatrix(slot, height) {
-    const width = this.slotW[slot];
-    const depth = this.slotD[slot];
-    const x = this.slotX[slot];
-    const z = this.slotZ[slot];
+    const layout = this.slotLayout[slot];
+    const isBox = !layout || layout.shape === 'box';
 
-    this._position.set(x + width / 2, 0, z + depth / 2);
-    this._scale.set(width, height, depth);
-    this._matrix.compose(this._position, IDENTITY, this._scale);
-    this.mesh.setMatrixAt(slot, this._matrix);
+    if (isBox) {
+      const width = this.slotW[slot];
+      const depth = this.slotD[slot];
+      const x = this.slotX[slot];
+      const z = this.slotZ[slot];
 
-    if (this.reflection) {
-      this._position.set(x + width / 2, -0.03, z + depth / 2);
-      this._scale.set(width, -height, depth);
-      this._mirrored.compose(this._position, IDENTITY, this._scale);
-      this.reflection.setMatrixAt(slot, this._mirrored);
+      this._position.set(x + width / 2, 0, z + depth / 2);
+      this._scale.set(width, height, depth);
+      this._matrix.compose(this._position, IDENTITY, this._scale);
+      this.mesh.setMatrixAt(slot, this._matrix);
+
+      if (this.reflection) {
+        this._position.set(x + width / 2, -0.03, z + depth / 2);
+        this._scale.set(width, -height, depth);
+        this._mirrored.compose(this._position, IDENTITY, this._scale);
+        this.reflection.setMatrixAt(slot, this._mirrored);
+      }
+    } else {
+      this._matrix.makeScale(0, 0, 0);
+      this.mesh.setMatrixAt(slot, this._matrix);
+      if (this.reflection) this.reflection.setMatrixAt(slot, this._matrix);
+      this.shapes.writeSlot(slot, layout, height);
     }
 
     this._writeHologram(slot, height);
 
-    const layout = this.slotLayout[slot];
     if (layout && layout.type === 'factory') {
       this.factoryParts.writeSlot(slot, layout, height);
     }

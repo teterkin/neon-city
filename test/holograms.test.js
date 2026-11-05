@@ -55,7 +55,7 @@ test('default ad density covers roughly a quarter of buildings', () => {
   for (let ix = 1; ix <= 200; ix += 1) {
     for (let iz = 1; iz <= 200; iz += 1) {
       const cell = cellLayout(ix, iz);
-      if (!cell || cell.type === 'factory') continue;
+      if (!cell || cell.type === 'factory' || cell.shape !== 'box') continue;
       buildings += 1;
       const spec = mediaFacadeFor(cell, null);
       if (cell.h >= 60) {
@@ -271,8 +271,9 @@ test('secondary facades add a rare wall panel on a perpendicular side', () => {
     for (let iz = 1; iz <= 100; iz += 1) {
       const cell = cellLayout(ix, iz);
       if (!cell) continue;
-      buildings += 1;
       const primary = mediaFacadeFor(cell, 1);
+      if (!primary) continue;
+      buildings += 1;
       const spec = secondaryMediaFacadeFor(cell, primary);
       assert.deepEqual(secondaryMediaFacadeFor(cell, primary), spec);
       if (!spec) continue;
@@ -308,7 +309,7 @@ test('secondary facades add a rare wall panel on a perpendicular side', () => {
 
   const share = secondary / buildings;
   assert.ok(share > 0.08 && share < 0.12, `share ${(share * 100).toFixed(1)}%`);
-  assert.ok(buildings > 4500, `only ${buildings} buildings`);
+  assert.ok(buildings > 4000, `only ${buildings} buildings`);
 });
 
 test('secondary facades need a primary facade', () => {

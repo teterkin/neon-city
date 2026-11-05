@@ -21,6 +21,17 @@ function occupiedSlots(city) {
   return slots;
 }
 
+function boxSlots(city) {
+  const slots = [];
+  for (let slot = 0; slot < city.count; slot += 1) {
+    const cell = city.slotCell(slot);
+    if (!cell) continue;
+    const layout = cellLayout(cell.ix, cell.iz);
+    if (layout && layout.shape === 'box') slots.push(slot);
+  }
+  return slots;
+}
+
 function scaleY(city, slot, mesh = city.mesh) {
   const matrix = new THREE.Matrix4();
   mesh.getMatrixAt(slot, matrix);
@@ -82,7 +93,7 @@ test('building instances fill the footprint declared by the layout', () => {
     const cell = city.slotCell(slot);
     if (!cell) continue;
     const layout = cellLayout(cell.ix, cell.iz);
-    if (!layout) continue;
+    if (!layout || layout.shape !== 'box') continue;
 
     city.mesh.getMatrixAt(slot, matrix);
     const box = city.geometry.boundingBox.clone().applyMatrix4(matrix);
@@ -125,7 +136,7 @@ test('crossing a cell boundary recycles only the new row of cells', () => {
 test('new buildings grow from zero to their target height', () => {
   const city = makeCity();
   city.update(0, atCell(6, 6));
-  const slot = occupiedSlots(city)[0];
+  const slot = boxSlots(city)[0];
   const cell = city.slotCell(slot);
   const target = cellLayout(cell.ix, cell.iz).h;
 
@@ -143,7 +154,7 @@ test('new buildings grow from zero to their target height', () => {
 test('instance tint matches the palette chosen by the layout', () => {
   const city = makeCity();
   city.update(0, atCell(3, 3));
-  const slot = occupiedSlots(city)[0];
+  const slot = boxSlots(city)[0];
   const cell = city.slotCell(slot);
   const expected = new THREE.Color(PALETTE[cellLayout(cell.ix, cell.iz).colorIndex].tint);
   const actual = new THREE.Color();
@@ -162,7 +173,7 @@ test('reflection proxy mirrors the building geometry below ground', () => {
   city.update(0, atCell(8, 8));
   city.update(GROW_MS + 1, atCell(8, 8));
   assert.equal(city.reflection.count, city.count);
-  const slot = occupiedSlots(city)[0];
+  const slot = boxSlots(city)[0];
   const building = scaleY(city, slot);
   const mirrored = scaleY(city, slot, city.reflection);
   assert.ok(mirrored.position.y <= 0);
@@ -175,12 +186,13 @@ test('reflection can be disabled', () => {
   const city = makeCity({ reflection: false });
   city.update(0, atCell(2, 2));
   assert.equal(city.reflection, null);
-  assert.equal(city.group.children.length, 6);
+  assert.equal(city.group.children.length, 7);
   assert.ok(city.group.children.includes(city.holograms));
   assert.ok(city.group.children.includes(city.holoFrames));
   assert.ok(city.group.children.includes(city.factoryParts.group));
   assert.ok(city.group.children.includes(city.skyDocks.group));
   assert.ok(city.group.children.includes(city.landingPads.group));
+  assert.ok(city.group.children.includes(city.shapes.group));
   city.dispose();
 });
 

@@ -21,7 +21,7 @@ export function nearestAvenueFace(layout) {
 
 export function mediaFacadeFor(layout, probability = null, placement = null) {
   if (!layout) return null;
-  if (layout.type === 'factory') return null;
+  if (layout.type === 'factory' || layout.shape !== 'box') return null;
   if (probability !== null && probability <= 0) return null;
   const chance = probability ?? (layout.h >= 60 ? 0.4 : 0.2);
   if (hash2(layout.ix, layout.iz, 401) > chance) return null;

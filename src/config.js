@@ -4,6 +4,7 @@ export const MIN_HEIGHT = 14;
 export const MAX_HEIGHT = 210;
 export const GROW_MS = 600;
 export const SEED = 90210;
+export const ARCH_ASPECT = 5.5;
 
 export const PALETTE = [
   { tint: 0x34e5ff, glow: 1.15 },
