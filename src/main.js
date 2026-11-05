@@ -18,6 +18,7 @@ import { detectEnvironment, nextTier, pickQuality, qualitySettings } from './qua
 import { detectWebGL } from './webglSupport.js';
 import { createGround } from './materials/groundMaterial.js';
 import { createSky } from './materials/skyMaterial.js';
+import { version } from '../package.json';
 import './style.css';
 
 const canvas = document.getElementById('scene');
@@ -211,10 +212,7 @@ async function start() {
   const soundToggle = document.getElementById('sound-toggle');
   const turnFlash = document.getElementById('turn-flash');
   const appVersion = document.getElementById('app-version');
-  if (appVersion) {
-    const version = typeof __APP_VERSION__ === 'undefined' ? 'dev' : __APP_VERSION__;
-    appVersion.textContent = `v${version}`;
-  }
+  if (appVersion) appVersion.textContent = `v${version}`;
 
   function syncModeUi() {
     const isSky = rig.mode === 'sky';

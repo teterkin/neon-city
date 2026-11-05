@@ -175,10 +175,12 @@ test('reflection can be disabled', () => {
   const city = makeCity({ reflection: false });
   city.update(0, atCell(2, 2));
   assert.equal(city.reflection, null);
-  assert.equal(city.group.children.length, 4);
+  assert.equal(city.group.children.length, 6);
   assert.ok(city.group.children.includes(city.holograms));
   assert.ok(city.group.children.includes(city.holoFrames));
   assert.ok(city.group.children.includes(city.factoryParts.group));
+  assert.ok(city.group.children.includes(city.skyDocks.group));
+  assert.ok(city.group.children.includes(city.landingPads.group));
   city.dispose();
 });
 

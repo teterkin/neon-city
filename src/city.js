@@ -8,6 +8,10 @@ import {
 } from './holograms.js';
 import { cellLayout, cellOf, ringCells } from './layout.js';
 import { FactoryParts } from './factoryParts.js';
+import { SkyDocks } from './skyDocks.js';
+import { LandingPads } from './landingPads.js';
+import { skyDockFor } from './skyDockModel.js';
+import { landingPadsFor } from './landingPadModel.js';
 import { createBuildingMaterial } from './materials/buildingMaterial.js';
 import { createHologramMaterial } from './materials/hologramMaterial.js';
 import { createHologramFrameMaterial } from './materials/hologramFrameMaterial.js';
@@ -121,6 +125,12 @@ export class City {
     this.factoryParts = new FactoryParts(this.count);
     this.group.add(this.factoryParts.group);
 
+    this.skyDocks = new SkyDocks(this.count);
+    this.group.add(this.skyDocks.group);
+
+    this.landingPads = new LandingPads(this.count);
+    this.group.add(this.landingPads.group);
+
     this.assigned = new Map();
     this.free = [];
     for (let slot = this.count - 1; slot >= 0; slot -= 1) this.free.push(slot);
@@ -139,6 +149,8 @@ export class City {
     this.slotLayout = new Array(this.count).fill(null);
     this.slotHolo = new Array(this.count).fill(null);
     this.slotHolo2 = new Array(this.count).fill(null);
+    this.slotDock = new Array(this.count).fill(null);
+    this.slotPads = new Array(this.count).fill(null);
     this.stats = {
       rebuilds: 0,
       spawned: 0,
@@ -146,6 +158,8 @@ export class City {
       active: 0,
       buildings: 0,
       factories: 0,
+      docks: 0,
+      pads: 0,
       holograms: 0,
       cell: { ix: Number.NaN, iz: Number.NaN },
     };
@@ -217,6 +231,8 @@ export class City {
     this.hologramMaterial.uniforms.uTime.value = seconds;
     this.holoFrameMaterial.uniforms.uTime.value = seconds;
     this.factoryParts.setTime(seconds);
+    this.skyDocks.setTime(seconds);
+    this.landingPads.setTime(seconds);
     if (this.reflectionMaterial) this.reflectionMaterial.uniforms.uTime.value = seconds;
   }
 
@@ -232,6 +248,8 @@ export class City {
     this.hologramMaterial.dispose();
     this.holoFrameMaterial.dispose();
     this.factoryParts.dispose();
+    this.skyDocks.dispose();
+    this.landingPads.dispose();
     if (this.reflectionMaterial) this.reflectionMaterial.dispose();
     this.group.clear();
     this.assigned.clear();
@@ -264,17 +282,28 @@ export class City {
     this.stats.spawned += spawned;
 
     const factories = [];
+    const docks = [];
+    const pads = [];
     for (const slot of this.assigned.values()) {
       const layout = this.slotLayout[slot];
-      if (!layout || layout.type !== 'factory') continue;
+      if (!layout) continue;
       let height = this.slotH[slot];
       if (this.slotActive[slot] === 1) {
         const progress = (now - this.slotSpawnAt[slot]) / GROW_MS;
         height = this.slotH[slot] * easeOutCubic(Math.max(0, Math.min(1, progress)));
       }
-      factories.push({ slot, layout, height });
+      if (layout.type === 'factory') {
+        factories.push({ slot, layout, height });
+        if (this.slotPads[slot]) {
+          pads.push({ slot, layout, pads: this.slotPads[slot] });
+        }
+      } else if (this.slotDock[slot]) {
+        docks.push({ slot, layout, height, dock: this.slotDock[slot] });
+      }
     }
     this.factoryParts.sync(factories);
+    this.skyDocks.sync(docks);
+    this.landingPads.sync(pads);
 
     return spawned;
   }
@@ -294,6 +323,8 @@ export class City {
       this.slotLayout[slot] = null;
       this.slotHolo[slot] = null;
       this.slotHolo2[slot] = null;
+      this.slotDock[slot] = null;
+      this.slotPads[slot] = null;
       this._writeMatrix(slot, 0);
       this._setColor(slot, BLACK, 0, 0);
       this._setHolo(slot, null);
@@ -310,6 +341,12 @@ export class City {
       : null;
     if (this.slotHolo[slot]) this.stats.holograms += 1;
 
+    this.slotDock[slot] = layout.type === 'tower' ? skyDockFor(layout) : null;
+    if (this.slotDock[slot]) this.stats.docks += 1;
+
+    this.slotPads[slot] = layout.type === 'factory' ? landingPadsFor(layout) : null;
+    if (this.slotPads[slot]) this.stats.pads += this.slotPads[slot].length;
+
     this.slotX[slot] = layout.x;
     this.slotZ[slot] = layout.z;
     this.slotW[slot] = layout.w;
@@ -325,10 +362,14 @@ export class City {
 
   _release(slot) {
     if (this.slotHolo[slot]) this.stats.holograms -= 1;
+    if (this.slotDock[slot]) this.stats.docks -= 1;
+    if (this.slotPads[slot]) this.stats.pads -= this.slotPads[slot].length;
     if (this.slotLayout[slot]?.type === 'factory') this.stats.factories -= 1;
     this.slotLayout[slot] = null;
     this.slotHolo[slot] = null;
     this.slotHolo2[slot] = null;
+    this.slotDock[slot] = null;
+    this.slotPads[slot] = null;
     if (this.slotBuilding[slot] === 1) {
       this.slotBuilding[slot] = 0;
       this.stats.buildings -= 1;
@@ -402,6 +443,9 @@ export class City {
     const layout = this.slotLayout[slot];
     if (layout && layout.type === 'factory') {
       this.factoryParts.writeSlot(slot, layout, height);
+    }
+    if (this.slotDock[slot]) {
+      this.skyDocks.writeSlot(slot, layout, height);
     }
 
     this._dirtyMatrix = true;
