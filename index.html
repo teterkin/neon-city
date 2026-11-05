@@ -140,8 +140,31 @@
         <path d="M19 6a8.5 8.5 0 0 1 0 12" />
       </svg>
     </button>
+    <button
+      id="help-toggle"
+      type="button"
+      aria-label="Управление"
+      aria-expanded="false"
+      title="Управление"
+    >?</button>
     <div id="turn-flash">ПОВОРОТ</div>
-    <p id="hint">V — сменить режим · M — вкл/выкл музыку · ←↑↓→ или тяни — осмотреться</p>
+    <p id="quote"></p>
+
+    <div id="help" hidden>
+      <div class="help-card" role="dialog" aria-modal="true" aria-labelledby="help-title">
+        <button id="help-close" class="help-close" type="button" aria-label="Закрыть">×</button>
+        <h2 id="help-title">УПРАВЛЕНИЕ</h2>
+        <dl class="help-list">
+          <div><dt><kbd>V</kbd></dt><dd>высота / улица</dd></div>
+          <div><dt><kbd>M</kbd></dt><dd>музыка</dd></div>
+          <div><dt><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd></dt><dd>осмотреться</dd></div>
+          <div><dt><kbd>drag</kbd></dt><dd>осмотреться мышью</dd></div>
+          <div><dt><kbd>колесо</kbd></dt><dd>скорость полёта</dd></div>
+          <div><dt><kbd>+</kbd><kbd>−</kbd></dt><dd>то же с клавиатуры</dd></div>
+          <div><dt><kbd>Space</kbd></dt><dd>сбросить скорость и взгляд</dd></div>
+        </dl>
+      </div>
+    </div>
 
     <div id="fallback" hidden>
       <h1>Нужен WebGL</h1>

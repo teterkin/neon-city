@@ -36,6 +36,7 @@ export class CameraRig {
     this.z = 0;
     this.height = SKY_HEIGHT;
     this.speed = SKY_SPEED;
+    this.targetSpeed = null;
     this.heading = 0;
     this.roll = 0;
     this.turnChance = null;
@@ -114,11 +115,18 @@ export class CameraRig {
     return true;
   }
 
+  resetLook() {
+    this.targetYaw = 0;
+    this.targetPitch = 0;
+    this.idleTime = 0;
+  }
+
   update(dt) {
     const portrait = this.camera.aspect < 1;
     const targetHeight =
       this.mode === 'sky' ? (portrait ? 74 : SKY_HEIGHT) : STREET_HEIGHT;
-    const targetSpeed = this.mode === 'sky' ? SKY_SPEED : STREET_SPEED;
+    const targetSpeed =
+      this.targetSpeed ?? (this.mode === 'sky' ? SKY_SPEED : STREET_SPEED);
     this.height = damp(this.height, targetHeight, 2.1, dt);
     this.speed = damp(this.speed, targetSpeed, 1.6, dt);
 

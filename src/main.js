@@ -5,7 +5,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import trackUrl from './assets/neon-drift-108bpm.mp3';
 import { Soundtrack } from './audio.js';
-import { AVENUE_EVERY, CELL, FOG_DENSITY } from './config.js';
+import { AVENUE_EVERY, CELL, FOG_DENSITY, SKY_HEIGHT, STREET_HEIGHT } from './config.js';
 import { City } from './city.js';
 import { CameraRig } from './cameraRig.js';
 import { Escort } from './escort.js';
@@ -18,6 +18,15 @@ import { detectEnvironment, nextTier, pickQuality, qualitySettings } from './qua
 import { detectWebGL } from './webglSupport.js';
 import { createGround } from './materials/groundMaterial.js';
 import { createSky } from './materials/skyMaterial.js';
+import { NIGHT_QUOTES } from './quotes.js';
+import {
+  defaultSpeed,
+  escortFraming,
+  escortScaleFor,
+  speedFromWheel,
+  stepSpeed,
+  throttleFor,
+} from './speed.js';
 import { version } from '../package.json';
 import './style.css';
 
@@ -165,6 +174,7 @@ async function start() {
 
   const escort = new Escort();
   scene.add(escort.group);
+  scene.add(escort.shadow);
 
   const meteorsEnabled = params.get('meteors') !== '0';
   const meteors = meteorsEnabled
@@ -212,7 +222,17 @@ async function start() {
   const soundToggle = document.getElementById('sound-toggle');
   const turnFlash = document.getElementById('turn-flash');
   const appVersion = document.getElementById('app-version');
+  const quoteEl = document.getElementById('quote');
+  const helpToggle = document.getElementById('help-toggle');
+  const help = document.getElementById('help');
+  const helpClose = document.getElementById('help-close');
+  let flightSpeed = null;
+  let helpOpen = false;
   if (appVersion) appVersion.textContent = `v${version}`;
+
+  function currentFlightSpeed() {
+    return flightSpeed ?? defaultSpeed(rig.mode);
+  }
 
   function syncModeUi() {
     const isSky = rig.mode === 'sky';
@@ -250,9 +270,72 @@ async function start() {
   }
 
   toggle.addEventListener('click', toggleMode);
+
+  function setHelp(open) {
+    helpOpen = open;
+    if (help) help.hidden = !open;
+    if (helpToggle) helpToggle.setAttribute('aria-expanded', String(open));
+    if (open) helpClose?.focus();
+    else helpToggle?.focus();
+  }
+
+  if (helpToggle) helpToggle.addEventListener('click', () => setHelp(!helpOpen));
+  if (helpClose) helpClose.addEventListener('click', () => setHelp(false));
+  if (help) {
+    help.addEventListener('click', (event) => {
+      if (event.target === help) setHelp(false);
+    });
+  }
+
+  function showQuote(index) {
+    if (!quoteEl) return;
+    const quote = NIGHT_QUOTES[index];
+    quoteEl.textContent = `«${quote.text}»`;
+    const year = document.createElement('span');
+    year.className = 'quote-year';
+    year.textContent = quote.year;
+    quoteEl.append(' ', year);
+  }
+
+  let quoteIndex = 0;
+  showQuote(0);
+  setInterval(() => {
+    if (!quoteEl) return;
+    quoteEl.style.opacity = '0';
+    setTimeout(() => {
+      quoteIndex = (quoteIndex + 1) % NIGHT_QUOTES.length;
+      showQuote(quoteIndex);
+      quoteEl.style.opacity = '';
+    }, 500);
+  }, 9000);
+
+  window.addEventListener(
+    'wheel',
+    (event) => {
+      if (helpOpen) return;
+      flightSpeed = speedFromWheel(currentFlightSpeed(), event.deltaY);
+      event.preventDefault();
+    },
+    { passive: false },
+  );
+
   window.addEventListener('keydown', (event) => {
     if (event.code === 'KeyV') toggleMode();
     if (event.code === 'KeyM') toggleSound();
+    if (event.code === 'Equal' || event.code === 'NumpadAdd') {
+      flightSpeed = stepSpeed(currentFlightSpeed(), 1);
+      event.preventDefault();
+    }
+    if (event.code === 'Minus' || event.code === 'NumpadSubtract') {
+      flightSpeed = stepSpeed(currentFlightSpeed(), -1);
+      event.preventDefault();
+    }
+    if (event.code === 'Space') {
+      flightSpeed = null;
+      rig.resetLook();
+      event.preventDefault();
+    }
+    if (event.code === 'Escape' && helpOpen) setHelp(false);
   });
 
   document.addEventListener('visibilitychange', () => {
@@ -291,6 +374,10 @@ async function start() {
     lastFrame = nowMs;
     elapsed += dt;
 
+    const baseSpeed = defaultSpeed(rig.mode);
+    const flight = flightSpeed ?? baseSpeed;
+    rig.targetSpeed = flight;
+    escort.setThrottle(throttleFor(flight));
     rig.update(dt);
     if (turnFlash) {
       turnFlash.classList.toggle('show', nowMs < rig.turnFlashUntil);
@@ -304,13 +391,20 @@ async function start() {
       meteors.update(dt, camera.position, rig.heading);
     }
     const turning = rig.nav?.turning === true;
+    const heightT = THREE.MathUtils.clamp(
+      (rig.height - STREET_HEIGHT) / (SKY_HEIGHT - STREET_HEIGHT),
+      0,
+      1,
+    );
+    const { ahead: baseAhead, drop: baseDrop } = escortFraming(heightT, turning);
+    const escortScale = escortScaleFor(flight, baseSpeed);
     escort.update(
       dt,
       camera.position,
       rig.heading,
       elapsed,
-      rig.mode === 'sky' ? 7 : 2.2,
-      rig.mode === 'sky' ? 28 : turning ? 9 : 19,
+      baseDrop * escortScale,
+      baseAhead * escortScale,
     );
     city.setTime(elapsed);
     ground.setTime(elapsed);

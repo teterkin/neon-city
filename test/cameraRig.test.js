@@ -41,6 +41,29 @@ test('opposite arrows cancel and other keys are ignored', () => {
   rig.dispose();
 });
 
+test('targetSpeed overrides the flight speed', () => {
+  const rig = makeRig();
+  rig.targetSpeed = 10;
+  rig.update(10);
+  assert.ok(rig.speed < 15, `braked speed ${rig.speed}`);
+  rig.targetSpeed = 37.8;
+  rig.update(10);
+  assert.ok(rig.speed > 35, `boosted speed ${rig.speed}`);
+  rig.dispose();
+});
+
+test('resetLook clears the look offset', () => {
+  const rig = makeRig();
+  rig.handleLookKey('ArrowLeft', true);
+  rig.update(0.5);
+  rig.handleLookKey('ArrowLeft', false);
+  rig.resetLook();
+  rig.update(2);
+  assert.ok(Math.abs(rig.targetYaw) < 1e-9, `targetYaw ${rig.targetYaw}`);
+  assert.ok(Math.abs(rig.lookYaw) < 0.05, `lookYaw ${rig.lookYaw}`);
+  rig.dispose();
+});
+
 test('arrow look is clamped per mode and returns to the course', () => {
   const rig = makeRig();
   rig.handleLookKey('ArrowLeft', true);
