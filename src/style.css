@@ -417,6 +417,20 @@ body.ready #help-toggle {
   gap: 12px;
 }
 
+.help-list .help-touch {
+  display: none;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .help-list .help-keyboard {
+    display: none;
+  }
+
+  .help-list .help-touch {
+    display: grid;
+  }
+}
+
 .help-list dt {
   display: flex;
   gap: 4px;
