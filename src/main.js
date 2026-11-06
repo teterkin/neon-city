@@ -38,6 +38,10 @@ const loader = document.getElementById('loader');
 const loaderBar = document.getElementById('loader-bar');
 const loaderStatus = document.getElementById('loader-status');
 const loaderPercent = document.getElementById('loader-percent');
+const loaderVersion = document.getElementById('loader-version');
+const appVersion = document.getElementById('app-version');
+if (loaderVersion) loaderVersion.textContent = `v${version}`;
+if (appVersion) appVersion.textContent = `v${version}`;
 const bootStart = performance.now();
 
 function setStage(index) {
@@ -233,7 +237,6 @@ async function start() {
   const toggle = document.getElementById('mode-toggle');
   const soundToggle = document.getElementById('sound-toggle');
   const turnFlash = document.getElementById('turn-flash');
-  const appVersion = document.getElementById('app-version');
   const quoteEl = document.getElementById('quote');
   const helpToggle = document.getElementById('help-toggle');
   const help = document.getElementById('help');
@@ -243,7 +246,6 @@ async function start() {
   const speedReset = document.getElementById('speed-reset');
   let flightSpeed = null;
   let helpOpen = false;
-  if (appVersion) appVersion.textContent = `v${version}`;
 
   function currentFlightSpeed() {
     return flightSpeed ?? defaultSpeed(rig.mode);

@@ -53,6 +53,17 @@
         text-shadow: 0 0 18px rgba(255, 79, 200, 0.7);
       }
 
+      .loader-version {
+        margin-left: 3px;
+        font-size: 8px;
+        font-weight: 400;
+        letter-spacing: 0.16em;
+        opacity: 0.38;
+        color: #d5f5ff;
+        text-shadow: none;
+        white-space: nowrap;
+      }
+
       .loader-track {
         height: 2px;
         margin: 22px 0 10px;
@@ -90,7 +101,7 @@
   <body>
     <div id="loader" role="status" aria-live="polite">
       <div class="loader-inner">
-        <div class="loader-brand">NEON<span>DRIFT</span></div>
+        <div class="loader-brand">NEON<span>DRIFT</span><small id="loader-version" class="loader-version"></small></div>
         <div class="loader-track"><div id="loader-bar"></div></div>
         <div class="loader-meta">
           <span id="loader-status">инициализация</span>

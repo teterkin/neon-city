@@ -103,9 +103,9 @@ npm run verify:bundle  # проверяет, что в neon-city.html нет в�
 
 ## Версии
 
-Проект следует SemVer. Версия живёт в `package.json` и подставляется Vite'ом
-(`__APP_VERSION__`) в HUD рядом с «NEON DRIFT» — в том числе в офлайн-сборке,
-без запросов за `package.json`. Новая функциональность — MINOR, исправления — PATCH,
+Проект следует SemVer. Версия живёт в `package.json` и вшивается Vite'ом в HUD
+рядом с «NEON DRIFT» и в загрузчик — в том числе в офлайн-сборке, без запросов
+за `package.json`. Новая функциональность — MINOR, исправления — PATCH,
 несовместимые изменения — MAJOR. Перед релизом версия поднимается в `package.json`,
 затем `npm run build:single`.
 
