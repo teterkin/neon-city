@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createGlowTexture } from './materials/glowTexture.js';
 import { createVehicleMaterial } from './materials/vehicleMaterial.js';
+import { avoidanceOffset, stepAvoidance } from './avoidanceModel.js';
 import {
   TRAFFIC_TYPES,
   advanceVehicle,
@@ -74,7 +75,7 @@ export class Traffic {
     this.mesh.instanceColor.needsUpdate = true;
   }
 
-  update(dt, camera) {
+  update(dt, camera, escort = null) {
     for (let i = 0; i < this.count; i += 1) {
       let vehicle = this.fleet[i];
       advanceVehicle(vehicle, dt);
@@ -86,6 +87,7 @@ export class Traffic {
         this.mesh.instanceColor.needsUpdate = true;
       }
 
+      if (escort) vehicle.avoid = stepAvoidance(vehicle, escort, dt);
       this._write(i, vehicle);
     }
     this.mesh.instanceMatrix.needsUpdate = true;
@@ -110,8 +112,13 @@ export class Traffic {
     const sway = vehicleSway(vehicle.phase);
     const swayX = Math.cos(vehicle.heading) * sway;
     const swayZ = -Math.sin(vehicle.heading) * sway;
+    const avoid = avoidanceOffset(vehicle);
 
-    this._position.set(vehicle.x + swayX, vehicle.y + bob, vehicle.z + swayZ);
+    this._position.set(
+      vehicle.x + swayX + avoid.x,
+      vehicle.y + bob,
+      vehicle.z + swayZ + avoid.z,
+    );
     this._quaternion.setFromAxisAngle(UP, vehicle.heading);
     this._scale.set(spec.width, spec.height, spec.length);
     this._matrix.compose(this._position, this._quaternion, this._scale);
@@ -123,10 +130,10 @@ export class Traffic {
 
     const rearOffset = spec.length * 0.55;
     this.glowPositions[index * 3] =
-      vehicle.x + swayX - Math.sin(vehicle.heading) * rearOffset;
+      vehicle.x + swayX + avoid.x - Math.sin(vehicle.heading) * rearOffset;
     this.glowPositions[index * 3 + 1] = vehicle.y + bob;
     this.glowPositions[index * 3 + 2] =
-      vehicle.z + swayZ - Math.cos(vehicle.heading) * rearOffset;
+      vehicle.z + swayZ + avoid.z - Math.cos(vehicle.heading) * rearOffset;
 
     this._color.setHex(vehicle.tint);
     this.glowColors[index * 3] = this._color.r * 1.5;

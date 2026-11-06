@@ -433,14 +433,6 @@ async function start() {
       turnFlash.classList.toggle('show', nowMs < rig.turnFlashUntil);
     }
     city.update(nowMs, camera.position);
-    if (traffic) {
-      traffic.update(dt, camera.position);
-      traffic.setTime(elapsed);
-    }
-    if (meteors) {
-      meteors.update(dt, camera.position, rig.heading);
-    }
-    if (crowd) crowd.update(dt, camera.position, elapsed);
     const turning = rig.nav?.turning === true;
     const heightT = THREE.MathUtils.clamp(
       (rig.height - STREET_HEIGHT) / (SKY_HEIGHT - STREET_HEIGHT),
@@ -457,6 +449,14 @@ async function start() {
       baseDrop * escortScale,
       baseAhead * escortScale,
     );
+    if (traffic) {
+      traffic.update(dt, camera.position, escort.position);
+      traffic.setTime(elapsed);
+    }
+    if (meteors) {
+      meteors.update(dt, camera.position, rig.heading);
+    }
+    if (crowd) crowd.update(dt, camera.position, elapsed);
     city.setTime(elapsed);
     ground.setTime(elapsed);
     ground.mesh.position.x = camera.position.x;

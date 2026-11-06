@@ -89,6 +89,7 @@ export function spawnVehicle(camera, rng, radius = 320, laneSpec = null) {
     type === 'cargo' || type === 'police'
       ? spec.tint
       : PASSENGER_TINTS[Math.floor(rng() * PASSENGER_TINTS.length)];
+  const phase = rng() * Math.PI * 2;
 
   return {
     type,
@@ -98,7 +99,9 @@ export function spawnVehicle(camera, rng, radius = 320, laneSpec = null) {
     heading,
     speed: spec.speedMin + rng() * (spec.speedMax - spec.speedMin),
     tint,
-    phase: rng() * Math.PI * 2,
+    phase,
+    avoid: 0,
+    avoidSide: phase < Math.PI ? 1 : -1,
   };
 }
 
