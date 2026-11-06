@@ -113,7 +113,7 @@ body {
 #mode-toggle {
   position: fixed;
   right: calc(18px + env(safe-area-inset-right));
-  bottom: calc(58px + env(safe-area-inset-bottom));
+  bottom: calc(18px + env(safe-area-inset-bottom));
   padding: 12px 20px;
   border: 1px solid rgba(79, 246, 255, 0.42);
   border-radius: 999px;
@@ -133,6 +133,53 @@ body {
   transform: scale(0.96);
   border-color: rgba(255, 79, 200, 0.7);
   box-shadow: 0 0 30px rgba(255, 79, 200, 0.35);
+}
+
+.speed-button {
+  position: fixed;
+  right: calc(18px + env(safe-area-inset-right));
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 1px solid rgba(79, 246, 255, 0.32);
+  border-radius: 50%;
+  background: rgba(6, 12, 26, 0.55);
+  backdrop-filter: blur(8px);
+  color: #cffbff;
+  font: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+#speed-up {
+  bottom: calc(178px + env(safe-area-inset-bottom));
+}
+
+#speed-reset {
+  bottom: calc(124px + env(safe-area-inset-bottom));
+  border-color: rgba(255, 79, 200, 0.4);
+  color: #ffd6f4;
+  font-size: 18px;
+}
+
+#speed-down {
+  bottom: calc(70px + env(safe-area-inset-bottom));
+}
+
+.speed-button:hover,
+.speed-button:focus-visible {
+  border-color: rgba(255, 79, 200, 0.65);
+  box-shadow: 0 0 26px rgba(255, 79, 200, 0.3);
+}
+
+.speed-button:active {
+  transform: scale(0.94);
 }
 
 .sound-toggle {
@@ -221,7 +268,7 @@ body.ready .sound-toggle {
   bottom: calc(20px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   margin: 0;
-  max-width: min(calc(100vw - 176px), 640px);
+  max-width: min(calc(100vw - 260px), 640px);
   font-size: 11px;
   letter-spacing: 0.04em;
   line-height: 1.6;
@@ -441,14 +488,16 @@ kbd {
 
 #hud,
 #mode-toggle,
-#help-toggle {
+#help-toggle,
+.speed-button {
   opacity: 0;
   transition: opacity 900ms ease;
 }
 
 body.ready #hud,
 body.ready #mode-toggle,
-body.ready #help-toggle {
+body.ready #help-toggle,
+body.ready .speed-button {
   opacity: 1;
 }
 
@@ -481,7 +530,7 @@ body.ready #help-toggle {
   }
 
   #mode-toggle {
-    bottom: calc(54px + env(safe-area-inset-bottom));
+    bottom: calc(18px + env(safe-area-inset-bottom));
     padding: 11px 18px;
   }
 }
@@ -490,6 +539,7 @@ body.ready #help-toggle {
   #hud,
   #mode-toggle,
   #help-toggle,
+  .speed-button,
   #quote {
     transition: none;
   }

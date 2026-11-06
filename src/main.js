@@ -19,6 +19,7 @@ import { detectEnvironment, nextTier, pickQuality, qualitySettings } from './qua
 import { detectWebGL } from './webglSupport.js';
 import { createGround } from './materials/groundMaterial.js';
 import { createSky } from './materials/skyMaterial.js';
+import { createHoldRepeat } from './holdRepeat.js';
 import { NIGHT_QUOTES } from './quotes.js';
 import {
   defaultSpeed,
@@ -237,6 +238,9 @@ async function start() {
   const helpToggle = document.getElementById('help-toggle');
   const help = document.getElementById('help');
   const helpClose = document.getElementById('help-close');
+  const speedUp = document.getElementById('speed-up');
+  const speedDown = document.getElementById('speed-down');
+  const speedReset = document.getElementById('speed-reset');
   let flightSpeed = null;
   let helpOpen = false;
   if (appVersion) appVersion.textContent = `v${version}`;
@@ -281,6 +285,37 @@ async function start() {
   }
 
   toggle.addEventListener('click', toggleMode);
+
+  function changeSpeed(direction) {
+    flightSpeed = stepSpeed(currentFlightSpeed(), direction);
+  }
+
+  function resetFlight() {
+    flightSpeed = null;
+    rig.resetLook();
+  }
+
+  function bindSpeedButton(button, direction) {
+    if (!button) return;
+    const repeat = createHoldRepeat(() => changeSpeed(direction));
+    button.addEventListener('pointerdown', (event) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      button.setPointerCapture?.(event.pointerId);
+      repeat.start();
+    });
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+      button.addEventListener(type, () => repeat.stop());
+    }
+    button.addEventListener('click', (event) => {
+      if (event.detail === 0) repeat.start();
+      repeat.stop();
+    });
+    button.addEventListener('contextmenu', (event) => event.preventDefault());
+  }
+
+  bindSpeedButton(speedUp, 1);
+  bindSpeedButton(speedDown, -1);
+  if (speedReset) speedReset.addEventListener('click', resetFlight);
 
   function setHelp(open) {
     helpOpen = open;
@@ -334,16 +369,18 @@ async function start() {
     if (event.code === 'KeyV') toggleMode();
     if (event.code === 'KeyM') toggleSound();
     if (event.code === 'Equal' || event.code === 'NumpadAdd') {
-      flightSpeed = stepSpeed(currentFlightSpeed(), 1);
+      changeSpeed(1);
       event.preventDefault();
     }
     if (event.code === 'Minus' || event.code === 'NumpadSubtract') {
-      flightSpeed = stepSpeed(currentFlightSpeed(), -1);
+      changeSpeed(-1);
       event.preventDefault();
     }
     if (event.code === 'Space') {
-      flightSpeed = null;
-      rig.resetLook();
+      if (event.target instanceof HTMLElement && event.target.tagName === 'BUTTON') {
+        return;
+      }
+      resetFlight();
       event.preventDefault();
     }
     if (event.code === 'Escape' && helpOpen) setHelp(false);
